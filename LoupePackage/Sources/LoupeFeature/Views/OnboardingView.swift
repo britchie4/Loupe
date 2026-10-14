@@ -36,7 +36,7 @@ final class OnboardingState {
     var videoPlayer: AVPlayer?
 
     func prepareVideoPlayer() {
-        guard let url = URL(string: "https://smughead.github.io/Loupe/demo.mp4") else { return }
+        guard let url = URL(string: "https://britchie4.github.io/Loupe/demo.mp4") else { return }
         videoPlayer = AVPlayer(url: url)
     }
 

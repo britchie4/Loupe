@@ -4,7 +4,7 @@
 
 Loupe is a macOS accessibility inspector that generates AI-agent-ready output. I built this for myself to speed up Mac app development with Claude Code. Hopefully you find it useful too.
 
-https://smughead.github.io/Loupe/
+https://britchie4.github.io/Loupe/
 
 ## What it does
 
@@ -27,12 +27,12 @@ https://smughead.github.io/Loupe/
 
 **Download the latest release:**
 
-[Download Loupe](https://github.com/smughead/Loupe/releases/latest) (.dmg)
+[Download Loupe](https://github.com/britchie4/Loupe/releases/latest) (.dmg)
 
 **Or build from source:**
 
 ```bash
-git clone https://github.com/smughead/Loupe.git
+git clone https://github.com/britchie4/Loupe.git
 cd Loupe
 open Loupe.xcworkspace
 ```
