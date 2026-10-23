@@ -74,6 +74,7 @@ docs/*
 !docs/app-icon.png
 !docs/demo.mp4
 !docs/demo-thumb.png
+!docs/appcast.xml
 DEBUG_CLICK_EVENTS.md
 
 # Environment files

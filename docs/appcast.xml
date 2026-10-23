@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Loupe</title>
+        <link>https://britchie4.github.io/Loupe/appcast.xml</link>
+        <description>Updates for Loupe</description>
+        <language>en</language>
+        <item>
+            <title>Loupe 1.2.0</title>
+            <pubDate>Fri, 23 Oct 2026 18:30:00 +0000</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h3>New</h3>
+                <ul>
+                    <li>Loupe can now update itself. Choose <b>Check for Updates…</b> from the menu bar icon or by right-clicking the toolbar. Loupe also asks once whether to check for updates automatically.</li>
+                </ul>
+                <h3>Fixed</h3>
+                <ul>
+                    <li>Highlights now appear when another app has an invisible window over your screen, such as a screen recorder, screen dimmer or annotation tool.</li>
+                </ul>
+            ]]></description>
+            <enclosure url="https://github.com/britchie4/Loupe/releases/download/v1.2.0/Loupe-v1.2.0.dmg"
+                       type="application/octet-stream"
+                       sparkle:edSignature="YKVuE+hH5ul7IYJHkuNt/EGlhul09cAkmLJDe++Z1HlhFclrEagGH1DstHHE8PE7lpwHewgq+vpPTpkyorr0CA=="
+                       length="4856528" />
+        </item>
+    </channel>
+</rss>
