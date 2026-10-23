@@ -60,6 +60,9 @@ public final class AppCoordinator {
     /// Persistent annotation store (survives across inspection sessions)
     public let annotationStore = AnnotationStore()
 
+    /// Checks for and installs new Loupe releases
+    public let updater = SoftwareUpdater()
+
     // MARK: - Initialization
 
     public init() {
@@ -92,6 +95,10 @@ public final class AppCoordinator {
 
         floatingToolbar.onRefreshApps = { [weak self] in
             self?.refreshApps()
+        }
+
+        floatingToolbar.onCheckForUpdates = { [weak self] in
+            self?.updater.checkForUpdates()
         }
     }
 

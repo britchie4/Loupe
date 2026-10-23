@@ -4,6 +4,9 @@
 
 #include "Shared.xcconfig"
 
+// Test bundles don't need the app's Sparkle settings
+INFOPLIST_FILE =
+
 // ==========================================
 // Test Target Settings (Customizable by scaffold tool)
 // ==========================================

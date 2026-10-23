@@ -30,6 +30,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Debug.xcconfig,
+				"Loupe-Info.plist",
 				Release.xcconfig,
 				Shared.xcconfig,
 				Tests.xcconfig,

@@ -97,6 +97,7 @@ public struct FloatingToolbarView: View {
     let onCopyFeedback: () -> Void
     let onClearAnnotations: () -> Void
     let onRefreshApps: () -> Void
+    let onCheckForUpdates: () -> Void
 
     /// State for settings popover
     @State private var isSettingsPopoverPresented = false
@@ -113,7 +114,8 @@ public struct FloatingToolbarView: View {
         settings: LoupeSettings,
         onCopyFeedback: @escaping () -> Void,
         onClearAnnotations: @escaping () -> Void,
-        onRefreshApps: @escaping () -> Void
+        onRefreshApps: @escaping () -> Void,
+        onCheckForUpdates: @escaping () -> Void = {}
     ) {
         self._isExpanded = isExpanded
         self._selectedApp = selectedApp
@@ -124,6 +126,7 @@ public struct FloatingToolbarView: View {
         self.onCopyFeedback = onCopyFeedback
         self.onClearAnnotations = onClearAnnotations
         self.onRefreshApps = onRefreshApps
+        self.onCheckForUpdates = onCheckForUpdates
     }
 
     public var body: some View {
@@ -153,6 +156,9 @@ public struct FloatingToolbarView: View {
         // Adding shadows to the GlassEffectContainer creates a rectangular outline
         // because the container has rectangular bounds, not rounded ones.
         .contextMenu {
+            Button("Check for Updates…") {
+                onCheckForUpdates()
+            }
             Button("Quit Loupe") {
                 NSApplication.shared.terminate(nil)
             }
@@ -293,6 +299,9 @@ public struct FloatingToolbarView: View {
             }
         }
         .contextMenu {
+            Button("Check for Updates…") {
+                onCheckForUpdates()
+            }
             Button("Quit Loupe") {
                 NSApplication.shared.terminate(nil)
             }

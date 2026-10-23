@@ -33,6 +33,7 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     public var onClearAnnotations: (() -> Void)?
     public var onAppSelected: ((TargetApp?) -> Void)?
     public var onRefreshApps: (() -> Void)?
+    public var onCheckForUpdates: (() -> Void)?
 
     // MARK: - Private State
 
@@ -283,6 +284,9 @@ private struct FloatingToolbarHostView: View {
             },
             onRefreshApps: {
                 controller.onRefreshApps?()
+            },
+            onCheckForUpdates: {
+                controller.onCheckForUpdates?()
             }
         )
     }
