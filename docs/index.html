@@ -568,6 +568,34 @@
             color: var(--text-primary);
         }
 
+        .download-update {
+            margin-top: 32px;
+            padding-top: 28px;
+            border-top: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .download-update h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .download-card .download-update p {
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .download-card .download-update p:last-child {
+            margin-bottom: 0;
+        }
+
+        .download-update strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
         /* ── Footer ── */
         footer {
             border-top: 1px solid var(--border);
@@ -831,6 +859,11 @@
                 <p class="download-meta">
                     or <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">build from source</a>
                 </p>
+                <div class="download-update">
+                    <h3>Already using Loupe?</h3>
+                    <p>Version 1.2.1 and later update themselves. Choose <strong>Check for Updates…</strong> from the Loupe menu bar icon, or right-click the toolbar.</p>
+                    <p>On an older version, update by hand once: quit Loupe, download the latest version above, and drag it to Applications, replacing the old copy. Your Accessibility permission carries over.</p>
+                </div>
             </div>
         </div>
     </section>

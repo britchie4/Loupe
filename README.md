@@ -39,6 +39,16 @@ open Loupe.xcworkspace
 
 Build and run with Xcode (Cmd+R).
 
+## Updating
+
+**Version 1.2.1 and later update themselves.** Loupe asks once whether to check for updates automatically. You can also choose **Check for Updates…** from the Loupe menu bar icon, or right-click the toolbar.
+
+**On an older version?** Update by hand once:
+
+1. Quit Loupe (right-click the toolbar and choose **Quit Loupe**).
+2. [Download the latest release](https://github.com/britchie4/Loupe/releases/latest).
+3. Drag Loupe to Applications, replacing the old copy. Your Accessibility permission carries over.
+
 ## Requirements
 
 - macOS 14.0+ (Sonoma)
