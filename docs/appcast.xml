@@ -6,10 +6,10 @@
         <description>Updates for Loupe</description>
         <language>en</language>
         <item>
-            <title>Loupe 1.2.0</title>
-            <pubDate>Fri, 23 Oct 2026 18:30:00 +0000</pubDate>
-            <sparkle:version>6</sparkle:version>
-            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <title>Loupe 1.2.1</title>
+            <pubDate>Fri, 23 Oct 2026 19:45:00 +0000</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <description><![CDATA[
                 <h3>New</h3>
@@ -21,10 +21,10 @@
                     <li>Highlights now appear when another app has an invisible window over your screen, such as a screen recorder, screen dimmer or annotation tool.</li>
                 </ul>
             ]]></description>
-            <enclosure url="https://github.com/britchie4/Loupe/releases/download/v1.2.0/Loupe-v1.2.0.dmg"
+            <enclosure url="https://github.com/britchie4/Loupe/releases/download/v1.2.1/Loupe-v1.2.1.dmg"
                        type="application/octet-stream"
-                       sparkle:edSignature="YKVuE+hH5ul7IYJHkuNt/EGlhul09cAkmLJDe++Z1HlhFclrEagGH1DstHHE8PE7lpwHewgq+vpPTpkyorr0CA=="
-                       length="4856528" />
+                       sparkle:edSignature="j7QAPK2TeHnohmoAOLEekHW3XbeQp9ry+7t8/r/GPN9fvr4sd8sESWHZJ59IPvOD6XLrQt8Qpzfxqa/Q9BVzBQ=="
+                       length="4856714" />
         </item>
     </channel>
 </rss>

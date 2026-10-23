@@ -9,8 +9,8 @@
 PRODUCT_NAME = Loupe
 PRODUCT_DISPLAY_NAME = Loupe
 PRODUCT_BUNDLE_IDENTIFIER = com.smughead.Loupe
-MARKETING_VERSION = 1.2.0
-CURRENT_PROJECT_VERSION = 6
+MARKETING_VERSION = 1.2.1
+CURRENT_PROJECT_VERSION = 7
 
 // ==========================================
 // Platform Configuration
@@ -23,6 +23,12 @@ MACOSX_DEPLOYMENT_TARGET = 14.0
 GENERATE_INFOPLIST_FILE = YES
 // Merged into the generated Info.plist: Sparkle update feed and signing key
 INFOPLIST_FILE = Config/Loupe-Info.plist
+
+// ==========================================
+// Linking
+// ==========================================
+// Embedded frameworks (Sparkle) load from the app's Frameworks folder
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks
 
 // ==========================================
 // Asset Catalog
