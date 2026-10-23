@@ -166,81 +166,69 @@ public final class OverlayWindowController: NSWindowController {
     }
 
     /// Check if the target app's window is the frontmost window at the given screen position.
-    /// Uses CGWindowListCopyWindowInfo to get windows in z-order and finds the topmost
-    /// window at the cursor position (excluding Loupe's own windows and system UI).
+    /// Asks the window server which window a mouse-down at this position would hit, so
+    /// invisible click-through windows from other apps (screen recorders, dimmers,
+    /// annotation tools) don't count as covering the target app.
     private func isTargetAppWindowFrontmostAt(_ screenLocation: NSPoint) -> Bool {
-        // Get Loupe's own PID to exclude our windows
-        let loupePid = ProcessInfo.processInfo.processIdentifier
-        let targetPid = targetApp.id
+        guard let overlayWindowNumber = window?.windowNumber else { return false }
 
-        // Build a set of Loupe window numbers that should be treated as transparent:
-        // the overlay window itself, plus any window that ignores mouse events (e.g. element labels).
-        // All other Loupe windows (toolbar, popovers, settings) are interactive and should block.
-        var transparentWindowNumbers = Set<Int>()
-        if let overlayNumber = self.window?.windowNumber {
-            transparentWindowNumbers.insert(overlayNumber)
-        }
-        for appWindow in NSApp.windows where appWindow.ignoresMouseEvents {
-            transparentWindowNumbers.insert(appWindow.windowNumber)
-        }
+        return Self.isTargetWindowFrontmost(
+            targetPid: targetApp.id,
+            loupePid: ProcessInfo.processInfo.processIdentifier,
+            overlayWindowNumber: overlayWindowNumber,
+            windowBelow: { windowNumber in
+                // Takes AppKit screen coordinates (bottom-left origin), which screenLocation already uses
+                NSWindow.windowNumber(at: screenLocation, belowWindowWithWindowNumber: windowNumber)
+            },
+            ownerOf: Self.windowOwner(of:)
+        )
+    }
 
-        // Get all on-screen windows in front-to-back order
-        let windowListOptions: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let windowInfoList = CGWindowListCopyWindowInfo(windowListOptions, kCGNullWindowID) as? [[String: Any]] else {
-            return false
-        }
+    /// Owner names of system utilities whose windows should never block inspection
+    /// (Screenshot app creates full-screen windows for screen recording)
+    private nonisolated static let ignoredWindowOwnerNames: Set<String> = ["Screenshot", "screencaptureui"]
 
-        // CGWindowList uses top-left origin (like AX), but screenLocation is in AppKit coords (bottom-left)
-        // Convert to CG coordinates for comparison using the primary screen height (AX coordinate anchor)
-        let primaryHeight = NSScreen.primaryScreenHeight
-        guard primaryHeight > 0 else { return false }
-        let cgPoint = CGPoint(x: screenLocation.x, y: primaryHeight - screenLocation.y)
+    /// Decide whether the first window a click would hit belongs to the target app.
+    /// Walks down from the top, looking through Loupe's overlay and ignored system utilities.
+    /// Interactive Loupe windows (toolbar, popovers) block, as does any other app's window.
+    /// - Parameters:
+    ///   - windowBelow: Returns the window a click would hit below the given window number
+    ///     (0 = from the top), or 0 when there is none. Click-through windows are never returned.
+    ///   - ownerOf: Returns the owner of a window number, or nil if unknown.
+    nonisolated static func isTargetWindowFrontmost(
+        targetPid: pid_t,
+        loupePid: pid_t,
+        overlayWindowNumber: Int,
+        windowBelow: (Int) -> Int,
+        ownerOf: (Int) -> WindowOwner?
+    ) -> Bool {
+        var searchBelow = 0
 
-        // Find the first (topmost) window that contains the cursor position
-        for windowInfo in windowInfoList {
-            guard let ownerPid = windowInfo[kCGWindowOwnerPID as String] as? pid_t,
-                  let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
-                  let x = boundsDict["X"],
-                  let y = boundsDict["Y"],
-                  let width = boundsDict["Width"],
-                  let height = boundsDict["Height"] else {
-                continue
-            }
+        // Safety limit to prevent infinite loops
+        for _ in 0..<32 {
+            let windowNumber = windowBelow(searchBelow)
+            guard windowNumber > 0, windowNumber != searchBelow else { return false }
+            searchBelow = windowNumber
 
-            // For Loupe's own windows: skip transparent ones (overlay, element labels),
-            // but block if an interactive Loupe window (toolbar, popover) is at this position
-            if ownerPid == loupePid {
-                let windowNumber = windowInfo[kCGWindowNumber as String] as? Int ?? -1
-                if transparentWindowNumbers.contains(windowNumber) {
-                    continue  // Transparent to hit testing — skip
-                }
-                // Check if this Loupe window actually contains the cursor
-                let windowFrame = CGRect(x: x, y: y, width: width, height: height)
-                if windowFrame.contains(cgPoint) {
-                    return false
-                }
-                // Loupe window exists but doesn't contain cursor — skip it
-                continue
-            }
+            if windowNumber == overlayWindowNumber { continue }
+            guard let owner = ownerOf(windowNumber) else { continue }
+            if owner.pid == loupePid { return false }
+            if ignoredWindowOwnerNames.contains(owner.name) { continue }
 
-            // Skip system utility windows that create transparent overlays
-            // (Screenshot app creates full-screen invisible windows for screen recording)
-            let ownerName = windowInfo[kCGWindowOwnerName as String] as? String ?? ""
-            if ownerName == "Screenshot" || ownerName == "screencaptureui" {
-                continue
-            }
-
-            // Check if this window contains the cursor position
-            let windowFrame = CGRect(x: x, y: y, width: width, height: height)
-            if windowFrame.contains(cgPoint) {
-                // Found the topmost window at this position
-                // Return true only if it belongs to the target app
-                return ownerPid == targetPid
-            }
+            return owner.pid == targetPid
         }
 
-        // No window found at position (shouldn't happen normally)
         return false
+    }
+
+    /// Look up which app owns a window
+    private nonisolated static func windowOwner(of windowNumber: Int) -> WindowOwner? {
+        guard let infoList = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(windowNumber)) as? [[String: Any]],
+              let info = infoList.first,
+              let pid = info[kCGWindowOwnerPID as String] as? pid_t else {
+            return nil
+        }
+        return WindowOwner(pid: pid, name: info[kCGWindowOwnerName as String] as? String ?? "")
     }
 
     // MARK: - Setup
@@ -1045,6 +1033,14 @@ private final class DisplayLinkContext {
     init(controller: OverlayWindowController) {
         self.controller = controller
     }
+}
+
+// MARK: - Window Owner
+
+/// The app that owns an on-screen window, used to decide whether the target app is covered
+struct WindowOwner: Equatable {
+    let pid: pid_t
+    let name: String
 }
 
 // MARK: - Annotation Badge
