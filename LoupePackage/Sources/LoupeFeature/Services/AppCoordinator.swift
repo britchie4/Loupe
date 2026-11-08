@@ -27,6 +27,10 @@ public final class AppCoordinator {
     /// The currently selected target app
     public var selectedApp: TargetApp? {
         didSet {
+            annotationStore.selectApp(key: selectedApp.map {
+                AnnotationStore.appKey(bundleIdentifier: $0.bundleIdentifier, appName: $0.name)
+            })
+
             if let app = selectedApp {
                 inspector.setTargetApp(app)
                 // Persist the selection
@@ -176,7 +180,8 @@ public final class AppCoordinator {
 
         // Generate markdown with selected settings
         let markdown = feedbackGenerator.generateMarkdown(
-            annotations: annotationStore.annotations,
+            // Done and dismissed notes need no more work, so leave them out
+            annotations: annotationStore.annotations.filter { $0.status.isOpen },
             appName: app.name,
             bundleIdentifier: app.bundleIdentifier,
             windowTitle: inspector.getTargetWindowTitle(),

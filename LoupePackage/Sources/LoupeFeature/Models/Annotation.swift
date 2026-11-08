@@ -1,8 +1,60 @@
 import Foundation
 import CoreGraphics
 
+// MARK: - Note Status
+
+/// Where a note stands in the hand-off to a coding agent
+public enum NoteStatus: String, Codable, CaseIterable, Sendable {
+    /// Written, not yet picked up by an agent
+    case pending
+    /// An agent has read the note
+    case seen
+    /// An agent reports the change is made
+    case done
+    /// An agent (or the user) decided not to act on the note
+    case dismissed
+
+    public var displayName: String {
+        switch self {
+        case .pending: return "Open"
+        case .seen: return "Seen by agent"
+        case .done: return "Done"
+        case .dismissed: return "Dismissed"
+        }
+    }
+
+    /// Whether the note still needs work
+    public var isOpen: Bool {
+        self == .pending || self == .seen
+    }
+}
+
+// MARK: - Note Reply
+
+/// A message attached to a note, for example an agent explaining what it changed
+public struct NoteReply: Identifiable, Equatable, Codable, Sendable {
+    public enum Author: String, Codable, Sendable {
+        case agent
+        case user
+    }
+
+    public let id: UUID
+    public let author: Author
+    public let text: String
+    public let createdAt: Date
+
+    public init(id: UUID = UUID(), author: Author, text: String, createdAt: Date = Date()) {
+        self.id = id
+        self.author = author
+        self.text = text
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Annotation
+
 /// Represents an annotation attached to an accessibility element
-public struct Annotation: Identifiable, Equatable {
+public struct Annotation: Identifiable, Equatable, Codable {
     public let id: UUID
     public let badgeNumber: Int
     public var text: String
@@ -14,9 +66,16 @@ public struct Annotation: Identifiable, Equatable {
     public let elementValue: String?
     public let hierarchyPath: [HierarchyNode]
     public let windowTitle: String?
+    /// Frame of the containing window when the note was made, so badges can follow the window
+    public let windowFrame: CGRect?
     public let appName: String
     public let bundleIdentifier: String?
     public let createdAt: Date
+
+    // Hand-off state
+    public var status: NoteStatus
+    public var replies: [NoteReply]
+    public var updatedAt: Date
 
     // Extended properties for detailed/forensic output
     public let siblings: [SiblingInfo]
@@ -44,8 +103,12 @@ public struct Annotation: Identifiable, Equatable {
         elementValue: String? = nil,
         hierarchyPath: [HierarchyNode] = [],
         windowTitle: String? = nil,
+        windowFrame: CGRect? = nil,
         appName: String = "",
         bundleIdentifier: String? = nil,
+        createdAt: Date = Date(),
+        status: NoteStatus = .pending,
+        replies: [NoteReply] = [],
         siblings: [SiblingInfo] = [],
         windowLevel: Int? = nil,
         allAttributes: [String: String]? = nil,
@@ -62,13 +125,22 @@ public struct Annotation: Identifiable, Equatable {
         self.elementValue = elementValue
         self.hierarchyPath = hierarchyPath
         self.windowTitle = windowTitle
+        self.windowFrame = windowFrame
         self.appName = appName
         self.bundleIdentifier = bundleIdentifier
-        self.createdAt = Date()
+        self.createdAt = createdAt
+        self.status = status
+        self.replies = replies
+        self.updatedAt = createdAt
         self.siblings = siblings
         self.windowLevel = windowLevel
         self.allAttributes = allAttributes
         self.regionId = regionId
+    }
+
+    /// The key notes are grouped under: the app's bundle ID, or its name when there is none
+    public var appKey: String {
+        AnnotationStore.appKey(bundleIdentifier: bundleIdentifier, appName: appName)
     }
 
     /// AI-friendly location string for identifying this element
@@ -111,6 +183,16 @@ public struct Annotation: Identifiable, Equatable {
         displayLabel(style: .humanized)
     }
 
+    /// The element's frame adjusted for how far its window has moved since the note was made
+    /// - Parameter currentWindowFrame: The window's frame now, in the same (AX) coordinates
+    public func elementFrame(currentWindowFrame: CGRect?) -> CGRect {
+        guard let original = windowFrame, let current = currentWindowFrame else { return elementFrame }
+        return elementFrame.offsetBy(
+            dx: current.origin.x - original.origin.x,
+            dy: current.origin.y - original.origin.y
+        )
+    }
+
     /// Position for the badge (top-right corner of the element)
     public var badgePosition: CGPoint {
         CGPoint(
@@ -120,14 +202,73 @@ public struct Annotation: Identifiable, Equatable {
     }
 }
 
-/// Manages a collection of annotations for an inspection session
+// MARK: - Annotation Store
+
+/// Manages notes, grouped per app and saved to disk so they survive quitting Loupe.
+///
+/// `annotations` always holds the notes for the currently selected app.
 @MainActor
 public final class AnnotationStore: ObservableObject {
+    /// Notes for the currently selected app
     @Published public private(set) var annotations: [Annotation] = []
 
-    private var nextBadgeNumber = 1
+    /// The app whose notes are in `annotations`
+    public private(set) var currentAppKey: String?
 
-    public init() {}
+    /// Every app's notes, keyed by `appKey`
+    private var notesByApp: [String: [Annotation]] = [:]
+
+    /// Where notes are saved; nil keeps them in memory only
+    private let fileURL: URL?
+
+    /// Default location: Application Support/<bundle id>/Notes.json
+    public static var defaultFileURL: URL? {
+        guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let folder = Bundle.main.bundleIdentifier ?? "Loupe"
+        return support.appendingPathComponent(folder, isDirectory: true).appendingPathComponent("Notes.json")
+    }
+
+    /// The key notes are grouped under for an app
+    public nonisolated static func appKey(bundleIdentifier: String?, appName: String) -> String {
+        if let bundleIdentifier, !bundleIdentifier.isEmpty { return bundleIdentifier }
+        return appName
+    }
+
+    /// - Parameter fileURL: Where to save notes. Pass nil to keep notes in memory only.
+    public init(fileURL: URL? = AnnotationStore.defaultFileURL) {
+        self.fileURL = fileURL
+        load()
+    }
+
+    // MARK: - App Selection
+
+    /// Switch to another app's notes
+    public func selectApp(key: String?) {
+        currentAppKey = key
+        refreshCurrent()
+    }
+
+    /// Notes for any app (used by the agent connection)
+    public func notes(forAppKey key: String) -> [Annotation] {
+        notesByApp[key] ?? []
+    }
+
+    /// Keys of every app that has notes
+    public var appKeys: [String] {
+        notesByApp.keys.filter { !(notesByApp[$0]?.isEmpty ?? true) }.sorted()
+    }
+
+    /// Find a note in any app
+    public func note(id: UUID) -> Annotation? {
+        for notes in notesByApp.values {
+            if let note = notes.first(where: { $0.id == id }) { return note }
+        }
+        return nil
+    }
+
+    // MARK: - Editing
 
     /// Add a new annotation for an element
     public func addAnnotation(
@@ -137,8 +278,10 @@ public final class AnnotationStore: ObservableObject {
         appName: String = "",
         bundleIdentifier: String? = nil
     ) -> Annotation {
+        let key = Self.appKey(bundleIdentifier: bundleIdentifier, appName: appName)
+        let existing = notesByApp[key] ?? []
         let annotation = Annotation(
-            badgeNumber: nextBadgeNumber,
+            badgeNumber: (existing.map(\.badgeNumber).max() ?? 0) + 1,
             text: text,
             elementFrame: element.frame,
             elementRole: element.role,
@@ -148,27 +291,46 @@ public final class AnnotationStore: ObservableObject {
             elementValue: element.value,
             hierarchyPath: element.hierarchyPath,
             windowTitle: windowTitle,
+            windowFrame: element.windowFrame,
             appName: appName,
             bundleIdentifier: bundleIdentifier,
             siblings: element.siblings,
             windowLevel: element.windowLevel,
             allAttributes: element.allAttributes
         )
-        annotations.append(annotation)
-        nextBadgeNumber += 1
+        notesByApp[key, default: []].append(annotation)
+        didChange()
         return annotation
     }
 
     /// Remove an annotation by ID
     public func removeAnnotation(id: UUID) {
-        annotations.removeAll { $0.id == id }
+        for key in notesByApp.keys {
+            notesByApp[key]?.removeAll { $0.id == id }
+        }
+        didChange()
     }
 
     /// Update annotation text
     public func updateAnnotation(id: UUID, text: String) {
-        if let index = annotations.firstIndex(where: { $0.id == id }) {
-            annotations[index].text = text
+        modify(id: id) { $0.text = text }
+    }
+
+    /// Change a note's status, optionally adding a reply that explains why
+    @discardableResult
+    public func setStatus(id: UUID, to status: NoteStatus, message: String? = nil, author: NoteReply.Author = .agent) -> Annotation? {
+        modify(id: id) { note in
+            note.status = status
+            if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                note.replies.append(NoteReply(author: author, text: message))
+            }
         }
+    }
+
+    /// Add a reply to a note
+    @discardableResult
+    public func addReply(id: UUID, text: String, author: NoteReply.Author) -> Annotation? {
+        modify(id: id) { $0.replies.append(NoteReply(author: author, text: text)) }
     }
 
     /// Find annotation near a given point (for click detection)
@@ -180,9 +342,88 @@ public final class AnnotationStore: ObservableObject {
         }
     }
 
-    /// Clear all annotations
+    /// Clear the current app's notes
     public func clear() {
-        annotations.removeAll()
-        nextBadgeNumber = 1
+        guard let key = currentAppKey else { return }
+        notesByApp[key] = nil
+        didChange()
+    }
+
+    // MARK: - Private
+
+    @discardableResult
+    private func modify(id: UUID, _ change: (inout Annotation) -> Void) -> Annotation? {
+        for key in notesByApp.keys {
+            if let index = notesByApp[key]?.firstIndex(where: { $0.id == id }) {
+                change(&notesByApp[key]![index])
+                notesByApp[key]![index].updatedAt = Date()
+                let updated = notesByApp[key]![index]
+                didChange()
+                return updated
+            }
+        }
+        return nil
+    }
+
+    private func didChange() {
+        notesByApp = notesByApp.filter { !$0.value.isEmpty }
+        refreshCurrent()
+        save()
+    }
+
+    private func refreshCurrent() {
+        annotations = currentAppKey.flatMap { notesByApp[$0] } ?? []
+    }
+
+    // MARK: - Persistence
+
+    /// On-disk format, versioned so it can change later
+    private struct SavedNotes: Codable {
+        var version: Int
+        var apps: [String: [Annotation]]
+    }
+
+    private func load() {
+        guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return }
+        do {
+            let saved = try JSONDecoder.loupe.decode(SavedNotes.self, from: data)
+            notesByApp = saved.apps
+        } catch {
+            // Keep the unreadable file aside rather than overwriting it
+            let backup = fileURL.deletingPathExtension().appendingPathExtension("unreadable.json")
+            try? FileManager.default.removeItem(at: backup)
+            try? FileManager.default.moveItem(at: fileURL, to: backup)
+            print("[Loupe] Could not read saved notes, moved aside: \(error)")
+        }
+    }
+
+    private func save() {
+        guard let fileURL else { return }
+        do {
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let data = try JSONEncoder.loupe.encode(SavedNotes(version: 1, apps: notesByApp))
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            print("[Loupe] Could not save notes: \(error)")
+        }
+    }
+}
+
+// MARK: - JSON Coding
+
+extension JSONEncoder {
+    static var loupe: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }
+}
+
+extension JSONDecoder {
+    static var loupe: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }

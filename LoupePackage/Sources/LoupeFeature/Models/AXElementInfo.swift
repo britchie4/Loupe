@@ -5,7 +5,7 @@ import AppKit
 // MARK: - Relative Position
 
 /// Describes the spatial relationship of a sibling element
-public enum RelativePosition: String, Equatable {
+public enum RelativePosition: String, Equatable, Codable {
     case before  // Appears before in reading order (typically left/above)
     case after   // Appears after in reading order (typically right/below)
     case above   // Spatially above
@@ -15,7 +15,7 @@ public enum RelativePosition: String, Equatable {
 // MARK: - Sibling Info
 
 /// Information about a sibling element for disambiguation context
-public struct SiblingInfo: Equatable {
+public struct SiblingInfo: Equatable, Codable {
     public let role: String
     public let identifier: String?
     public let title: String?
@@ -51,7 +51,7 @@ public struct SiblingInfo: Equatable {
 // MARK: - Hierarchy Node
 
 /// Represents a single node in the accessibility hierarchy with identifying attributes
-public struct HierarchyNode: Equatable {
+public struct HierarchyNode: Equatable, Codable {
     public let role: String
     public let subrole: String?
     public let identifier: String?

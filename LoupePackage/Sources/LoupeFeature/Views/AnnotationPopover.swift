@@ -4,19 +4,78 @@ extension Notification.Name {
     static let loupePopoverReadyForFocus = Notification.Name("loupePopoverReadyForFocus")
 }
 
+/// What the popover shows about the element a note is attached to.
+/// Built from a live element (new note) or from a saved note (existing note).
+struct NoteElementSummary {
+    let title: String
+    let details: [(label: String, value: String)]
+
+    init(element: AXElementInfo, namingStyle: NamingStyle) {
+        title = element.displayLabel(style: namingStyle)
+        details = Self.rows(
+            role: element.role,
+            identifier: element.identifier,
+            title: element.title,
+            value: element.value,
+            path: element.hierarchyPath
+        )
+    }
+
+    init(annotation: Annotation, namingStyle: NamingStyle) {
+        title = annotation.displayLabel(style: namingStyle)
+        details = Self.rows(
+            role: annotation.elementRole,
+            identifier: annotation.elementIdentifier,
+            title: annotation.elementTitle,
+            value: annotation.elementValue,
+            path: annotation.hierarchyPath
+        )
+    }
+
+    private static func rows(
+        role: String,
+        identifier: String?,
+        title: String?,
+        value: String?,
+        path: [HierarchyNode]
+    ) -> [(label: String, value: String)] {
+        var rows: [(label: String, value: String)] = [("Role", role)]
+        if let identifier, !identifier.isEmpty { rows.append(("Identifier", identifier)) }
+        if let title, !title.isEmpty { rows.append(("Title", title)) }
+        if let value, !value.isEmpty { rows.append(("Value", value)) }
+        if !path.isEmpty {
+            rows.append(("Path", path.map { $0.annotatedString }.joined(separator: " > ")))
+        }
+        return rows
+    }
+}
+
 /// Popover view for adding or editing an annotation on an accessibility element
 struct AnnotationPopover: View {
-    let element: AXElementInfo
-    let namingStyle: NamingStyle
+    let summary: NoteElementSummary
+    /// The saved note being opened, or nil when writing a new one
+    let existingNote: Annotation?
     let onSave: (String) -> Void
+    let onDelete: (() -> Void)?
     let onCancel: () -> Void
 
-    @State private var annotationText = ""
+    @State private var annotationText: String
     @State private var isDetailsExpanded = false
     @FocusState private var isTextFieldFocused: Bool
 
-    private var elementSummary: String {
-        element.displayLabel(style: namingStyle)
+    init(
+        summary: NoteElementSummary,
+        existingNote: Annotation? = nil,
+        onSave: @escaping (String) -> Void,
+        onDelete: (() -> Void)? = nil,
+        onCancel: @escaping () -> Void
+    ) {
+        self.summary = summary
+        self.existingNote = existingNote
+        self.onSave = onSave
+        self.onDelete = onDelete
+        self.onCancel = onCancel
+        self._annotationText = State(initialValue: existingNote?.text ?? "")
     }
 
     var body: some View {
@@ -25,9 +84,13 @@ struct AnnotationPopover: View {
             DisclosureGroup(isExpanded: $isDetailsExpanded) {
                 elementDetailsView
             } label: {
-                Text(elementSummary)
+                Text(summary.title)
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.primary)
+            }
+
+            if let note = existingNote {
+                statusView(for: note)
             }
 
             Divider()
@@ -49,12 +112,17 @@ struct AnnotationPopover: View {
 
             // Action buttons
             HStack {
+                if let onDelete {
+                    Button("Delete", role: .destructive) {
+                        onDelete()
+                    }
+                }
                 Spacer()
                 Button("Cancel") {
                     onCancel()
                 }
                     .keyboardShortcut(.cancelAction)
-                Button("Add") {
+                Button(existingNote == nil ? "Add" : "Save") {
                     onSave(annotationText)
                 }
                     .keyboardShortcut(.defaultAction)
@@ -76,20 +144,31 @@ struct AnnotationPopover: View {
         }
     }
 
+    /// Status line and any replies for a saved note
+    private func statusView(for note: Annotation) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(note.status.displayName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(note.status.isOpen ? Color.loupeAccent : Color.secondary)
+
+            ForEach(note.replies) { reply in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(reply.author == .agent ? "Agent" : "You")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(reply.text)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private var elementDetailsView: some View {
         VStack(alignment: .leading, spacing: 6) {
-            detailRow("Role", element.role)
-            if let id = element.identifier, !id.isEmpty {
-                detailRow("Identifier", id)
-            }
-            if let title = element.title, !title.isEmpty {
-                detailRow("Title", title)
-            }
-            if let value = element.value, !value.isEmpty {
-                detailRow("Value", value)
-            }
-            if !element.hierarchyPath.isEmpty {
-                detailRow("Path", element.hierarchyPath.map { $0.annotatedString }.joined(separator: " > "))
+            ForEach(Array(summary.details.enumerated()), id: \.offset) { _, row in
+                detailRow(row.label, row.value)
             }
         }
         .font(.system(.caption, design: .monospaced))
@@ -152,16 +231,18 @@ final class AnnotationPopoverController {
     /// - Parameters:
     ///   - elementFrame: The element's frame in screen coordinates (AppKit: origin at bottom-left)
     ///   - preferredEdge: Which edge of the element to attach the popover to
-    ///   - element: The accessibility element info to display
-    ///   - namingStyle: The naming style to use for the element header
+    ///   - summary: What to show about the element
+    ///   - existingNote: The saved note being opened, or nil for a new note
     ///   - onSave: Callback when user saves the annotation
+    ///   - onDelete: Callback when user deletes an existing note
     ///   - onDismiss: Callback when popover is dismissed
     func show(
         forElementFrame elementFrame: NSRect,
         preferredEdge: NSRectEdge,
-        element: AXElementInfo,
-        namingStyle: NamingStyle = .humanized,
+        summary: NoteElementSummary,
+        existingNote: Annotation? = nil,
         onSave: @escaping (String) -> Void,
+        onDelete: (() -> Void)? = nil,
         onDismiss: (() -> Void)? = nil
     ) {
         // Dismiss any existing panel immediately (no animation when replacing)
@@ -175,11 +256,17 @@ final class AnnotationPopoverController {
 
         // Create the SwiftUI content
         let content = AnnotationPopover(
-            element: element,
-            namingStyle: namingStyle,
+            summary: summary,
+            existingNote: existingNote,
             onSave: { [weak self] text in
                 onSave(text)
                 self?.dismiss()
+            },
+            onDelete: onDelete.map { onDelete in
+                { [weak self] in
+                    onDelete()
+                    self?.dismiss()
+                }
             },
             onCancel: { [weak self] in
                 self?.dismiss()

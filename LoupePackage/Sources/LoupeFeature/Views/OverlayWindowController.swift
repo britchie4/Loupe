@@ -238,7 +238,7 @@ public final class OverlayWindowController: NSWindowController {
             overlayState: overlayState,
             onMouseMoved: { [weak self] location in self?.handleMouseMoved(location) },
             onMouseClicked: { [weak self] in self?.handleMouseClicked() },
-            onBadgeDelete: { [weak self] badgeId in self?.deleteAnnotation(id: badgeId) },
+            onBadgeOpen: { [weak self] badgeId in self?.openNote(id: badgeId) },
             onEscape: { [weak self] in self?.onRequestCollapse?() }
         )
 
@@ -432,8 +432,10 @@ public final class OverlayWindowController: NSWindowController {
 
     /// Update cached annotation badge positions in local coordinates
     private func updateAnnotationBadges() {
+        let currentWindowFrame = inspector.getTargetWindowFrame()
         overlayState.annotationBadges = annotationStore.annotations.compactMap { annotation in
-            guard let localFrame = convertAXFrameToLocal(annotation.elementFrame) else { return nil }
+            let elementFrame = annotation.elementFrame(currentWindowFrame: currentWindowFrame)
+            guard let localFrame = convertAXFrameToLocal(elementFrame) else { return nil }
 
             // Position badge at top-right corner of the element
             let badgePosition = CGPoint(
@@ -446,7 +448,9 @@ public final class OverlayWindowController: NSWindowController {
                 number: annotation.badgeNumber,
                 position: badgePosition,
                 text: annotation.text,
-                elementName: annotation.displayLabel(style: settings.namingStyle)
+                elementName: annotation.displayLabel(style: settings.namingStyle),
+                status: annotation.status,
+                elementFrameAX: elementFrame
             )
         }
     }
@@ -621,51 +625,72 @@ public final class OverlayWindowController: NSWindowController {
         overlayState.hoveredBadgeIndex = nil
     }
 
+    /// Open a saved note to edit it, read replies, or delete it
+    private func openNote(id: UUID) {
+        guard !isPopoverActive,
+              let badge = overlayState.annotationBadges.first(where: { $0.id == id }),
+              let note = annotationStore.annotations.first(where: { $0.id == id }),
+              let elementScreenFrame = convertAXFrameToScreen(badge.elementFrameAX) else {
+            return
+        }
+
+        overlayState.hoveredBadgeIndex = nil
+        isPopoverActive = true
+
+        popoverController.show(
+            forElementFrame: elementScreenFrame,
+            preferredEdge: preferredPopoverEdge(for: elementScreenFrame),
+            summary: NoteElementSummary(annotation: note, namingStyle: settings.namingStyle),
+            existingNote: note,
+            onSave: { [weak self] text in
+                self?.annotationStore.updateAnnotation(id: id, text: text)
+                self?.updateAnnotationBadges()
+            },
+            onDelete: { [weak self] in
+                self?.deleteAnnotation(id: id)
+            },
+            onDismiss: { [weak self] in
+                self?.isPopoverActive = false
+            }
+        )
+    }
+
+    /// Pick which side of an element the popover opens on, so it stays on screen
+    private func preferredPopoverEdge(for elementScreenFrame: CGRect) -> NSRectEdge {
+        let screenFrame = window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        let topThreshold = screenFrame.maxY - 150  // Near top of screen (within ~150px of menu bar)
+        let bottomThreshold = screenFrame.minY + 200  // Near bottom of screen
+        let rightThreshold = screenFrame.maxX - (screenFrame.width * 0.3)
+
+        if elementScreenFrame.midY > topThreshold {
+            return .maxY  // Near top: show below element
+        } else if elementScreenFrame.midY < bottomThreshold {
+            return .minY  // Near bottom: show above element
+        } else if elementScreenFrame.maxX > rightThreshold {
+            return .minX  // Near right edge: show to the left
+        } else {
+            return .maxX  // Default: show to the right
+        }
+    }
+
     private func handleMouseClicked(event: NSEvent? = nil) {
         // Block new clicks while popover is active (modal state)
         // The popover's click monitor handles clicks and shows wiggle animation
         guard !isPopoverActive else { return }
 
-        // If hovering over a badge, delete it instead of creating new annotation
+        // If hovering over a badge, open that note instead of creating a new one
         if let hoveredIndex = overlayState.hoveredBadgeIndex {
             let badge = overlayState.annotationBadges[hoveredIndex]
-            deleteAnnotation(id: badge.id)
+            openNote(id: badge.id)
             return
         }
 
         guard let element = inspector.currentElement,
-              let window = window,
               let elementScreenFrame = convertAXFrameToScreen(element.frame) else {
             return
         }
 
-        // Debug: Log click positioning (disabled - not focus-related)
-        // print("[Loupe] CLICK: element.frame(AX)=\(element.frame) → screenFrame=\(elementScreenFrame)")
-        // print("[Loupe] CLICK: window.frame=\(window.frame), screen.height=\(NSScreen.main?.frame.height ?? 0)")
-
-        // Use the element's screen frame for positioning decisions
-        let screenFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-
-        // Determine preferred edge based on element position on screen
-        let topThreshold = screenFrame.maxY - 150  // Near top of screen (within ~150px of menu bar)
-        let bottomThreshold = screenFrame.minY + 200  // Near bottom of screen
-        let rightThreshold = screenFrame.maxX - (screenFrame.width * 0.3)
-
-        let preferredEdge: NSRectEdge
-
-        if elementScreenFrame.midY > topThreshold {
-            // Element is near top of screen - show popover below element
-            preferredEdge = .maxY
-        } else if elementScreenFrame.midY < bottomThreshold {
-            // Element is near bottom of screen - show popover above element
-            preferredEdge = .minY
-        } else if elementScreenFrame.maxX > rightThreshold {
-            // Element is near right edge - show popover to the left of element
-            preferredEdge = .minX
-        } else {
-            // Default - show popover to the right of element
-            preferredEdge = .maxX
-        }
+        let preferredEdge = preferredPopoverEdge(for: elementScreenFrame)
 
         // Enter modal state before showing popover
         isPopoverActive = true
@@ -673,8 +698,7 @@ public final class OverlayWindowController: NSWindowController {
         popoverController.show(
             forElementFrame: elementScreenFrame,
             preferredEdge: preferredEdge,
-            element: element,
-            namingStyle: settings.namingStyle,
+            summary: NoteElementSummary(element: element, namingStyle: settings.namingStyle),
             onSave: { [weak self] text in
                 guard let self = self else { return }
                 _ = self.annotationStore.addAnnotation(
@@ -730,12 +754,13 @@ struct OverlayView: View {
     let overlayState: OverlayState
     let onMouseMoved: (NSPoint) -> Void
     let onMouseClicked: () -> Void
-    let onBadgeDelete: (UUID) -> Void
+    let onBadgeOpen: (UUID) -> Void
     let onEscape: () -> Void
 
     private let badgeSize: CGFloat = 20
     private let badgeColor = Color.loupeBadge
-    private let deleteColor = Color.loupeDelete
+    private let doneColor = Color.green
+    private let dismissedColor = Color.gray
 
     var body: some View {
         GeometryReader { geometry in
@@ -798,8 +823,8 @@ struct OverlayView: View {
                 // This provides proper tooltip and click handling that Canvas can't do
                 ForEach(Array(overlayState.annotationBadges.enumerated()), id: \.element.id) { index, badge in
                     if overlayState.hoveredBadgeIndex == index {
-                        BadgeDeleteButton(badge: badge, viewSize: geometry.size) {
-                            onBadgeDelete(badge.id)
+                        BadgeButton(badge: badge, viewSize: geometry.size) {
+                            onBadgeOpen(badge.id)
                         }
                         .position(badge.position)
                     }
@@ -821,25 +846,27 @@ struct OverlayView: View {
             height: badgeSize
         )
 
-        // Draw circle background (red when hovered for delete)
+        // Circle color shows the note's status
         let circlePath = Path(ellipseIn: badgeRect)
-        context.fill(circlePath, with: .color(isHovered ? deleteColor : badgeColor))
+        let fillColor: Color
+        switch badge.status {
+        case .pending, .seen: fillColor = badgeColor
+        case .done: fillColor = doneColor
+        case .dismissed: fillColor = dismissedColor
+        }
+        context.fill(circlePath, with: .color(fillColor))
 
-        // Draw white border for visibility
-        context.stroke(circlePath, with: .color(.white), lineWidth: 2)
+        // White border for visibility, thicker when hovered
+        context.stroke(circlePath, with: .color(.white), lineWidth: isHovered ? 3 : 2)
 
-        if isHovered {
-            // Draw X icon when hovered
-            let xSize: CGFloat = 8
+        if badge.status == .done {
+            // Checkmark for finished notes
             let center = badge.position
-
-            var xPath = Path()
-            xPath.move(to: CGPoint(x: center.x - xSize/2, y: center.y - xSize/2))
-            xPath.addLine(to: CGPoint(x: center.x + xSize/2, y: center.y + xSize/2))
-            xPath.move(to: CGPoint(x: center.x + xSize/2, y: center.y - xSize/2))
-            xPath.addLine(to: CGPoint(x: center.x - xSize/2, y: center.y + xSize/2))
-
-            context.stroke(xPath, with: .color(.white), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            var checkPath = Path()
+            checkPath.move(to: CGPoint(x: center.x - 4, y: center.y))
+            checkPath.addLine(to: CGPoint(x: center.x - 1, y: center.y + 3))
+            checkPath.addLine(to: CGPoint(x: center.x + 4, y: center.y - 3))
+            context.stroke(checkPath, with: .color(.white), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         } else {
             // Draw number text
             let numberText = Text("\(badge.number)")
@@ -855,12 +882,12 @@ struct OverlayView: View {
     }
 }
 
-// MARK: - Badge Delete Button (for hover tooltip and click handling)
+// MARK: - Badge Button (for hover tooltip and click handling)
 
-private struct BadgeDeleteButton: View {
+private struct BadgeButton: View {
     let badge: AnnotationBadge
     let viewSize: CGSize
-    let onDelete: () -> Void
+    let onOpen: () -> Void
 
     @State private var isHovered = false
 
@@ -877,7 +904,7 @@ private struct BadgeDeleteButton: View {
     }
 
     var body: some View {
-        Button(action: onDelete) {
+        Button(action: onOpen) {
             Color.clear
                 .frame(width: 24, height: 24)
                 .contentShape(Circle())
@@ -925,8 +952,8 @@ private struct BadgeTooltipView: View {
                     .italic()
             }
 
-            // Delete hint
-            Text("Click × to delete")
+            // Status and open hint
+            Text("\(badge.status.displayName). Click to open.")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
@@ -1052,6 +1079,9 @@ struct AnnotationBadge {
     let position: CGPoint
     let text: String
     let elementName: String
+    let status: NoteStatus
+    /// The element's frame in AX coordinates, adjusted for window movement
+    let elementFrameAX: CGRect
 
     /// The hit test rect for this badge (used for hover detection)
     var hitTestRect: CGRect {
