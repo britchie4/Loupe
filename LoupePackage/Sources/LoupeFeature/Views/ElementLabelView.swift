@@ -1,6 +1,19 @@
 import SwiftUI
 import AppKit
 
+extension View {
+    /// System Liquid Glass on macOS 26+, so the label follows the user's transparency setting;
+    /// the lighter custom effect on earlier versions
+    @ViewBuilder
+    func loupeLabelGlassBackground(cornerRadius: CGFloat) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            self.background(LightLiquidGlassBackground(cornerRadius: cornerRadius))
+        }
+    }
+}
+
 /// Small floating label showing the current element's role and title
 public struct ElementLabelView: View {
     let role: String
@@ -26,9 +39,7 @@ public struct ElementLabelView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
-            LightLiquidGlassBackground(cornerRadius: 6)
-        )
+        .loupeLabelGlassBackground(cornerRadius: 6)
     }
 
     /// Humanized label: `button "Save"` or `textField (email)`

@@ -131,6 +131,7 @@ struct AnnotationPopover: View {
         }
         .padding()
         .frame(width: 320)
+        .popoverBackground()
         .tint(Color.loupeAccent)
         .onReceive(NotificationCenter.default.publisher(for: .loupePopoverReadyForFocus)) { _ in
             isTextFieldFocused = true
@@ -183,6 +184,19 @@ struct AnnotationPopover: View {
                 .frame(width: 70, alignment: .trailing)
             Text(value)
                 .textSelection(.enabled)
+        }
+    }
+}
+
+extension View {
+    /// Liquid Glass behind the note window on macOS 26+; nothing on earlier versions,
+    /// where the panel's own layer draws the background
+    @ViewBuilder
+    func popoverBackground() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            self
         }
     }
 }
@@ -323,8 +337,12 @@ final class AnnotationPopoverController {
         // to ensure the panel is positioned at our calculated origin
         panel.setFrameOrigin(panelOrigin)
 
-        // Style the content view with rounded corners and background
-        if let contentView = panel.contentView {
+        // Style the content view with rounded corners and background.
+        // On macOS 26+ the SwiftUI content draws its own Liquid Glass, so the layer stays clear.
+        if #available(macOS 26.0, *) {
+            panel.contentView?.wantsLayer = true
+            panel.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+        } else if let contentView = panel.contentView {
             contentView.wantsLayer = true
             contentView.layer?.cornerRadius = 8
             contentView.layer?.masksToBounds = true
