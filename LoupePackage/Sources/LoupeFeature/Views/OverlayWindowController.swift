@@ -961,13 +961,7 @@ private struct BadgeTooltipView: View {
         .font(.system(size: 13))
         .padding(12)
         .frame(minWidth: 160, maxWidth: 280, alignment: .leading)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.25), radius: 20, y: 4)
+        .loupeGlassBackground(cornerRadius: 12)
         .allowsHitTesting(false) // Don't block clicks on the badge
     }
 }

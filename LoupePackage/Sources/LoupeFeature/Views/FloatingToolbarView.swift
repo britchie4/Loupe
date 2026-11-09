@@ -13,7 +13,7 @@ extension View {
     @ViewBuilder
     func loupeGlassBackground(cornerRadius: CGFloat = 12) -> some View {
         if #available(macOS 26.0, *) {
-            self.glassEffect(.regular.tint(.clear), in: RoundedRectangle(cornerRadius: cornerRadius))
+            self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         } else {
             self.background(
                 LiquidGlassBackground(cornerRadius: cornerRadius)
@@ -177,7 +177,7 @@ public struct FloatingToolbarView: View {
                 .saturation(0)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .frame(width: 52, height: 44)
-                .glassEffect(.regular.tint(.clear).interactive(), in: Circle())
+                .glassEffect(.regular.interactive(), in: Circle())
                 .glassEffectID("toolbar", in: glassNamespace)
                 .padding(.top, 6)
                 .padding(.trailing, 6)
@@ -259,7 +259,7 @@ public struct FloatingToolbarView: View {
         }
         .padding(8)
         // Note: Using non-interactive glass so button taps pass through
-        .glassEffect(.regular.tint(.clear), in: RoundedRectangle(cornerRadius: 14))
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .glassEffectID("toolbar", in: glassNamespace) // Same ID as collapsed - enables morphing!
     }
 
