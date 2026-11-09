@@ -102,8 +102,9 @@ public struct FloatingToolbarView: View {
     /// State for settings popover
     @State private var isSettingsPopoverPresented = false
 
-    /// Namespace for glass effect morphing (macOS 26+)
-    @Namespace private var glassNamespace
+    /// The open bar's natural width, measured while it's showing, so the single
+    /// glass shape can animate between the icon and the bar (macOS 26+)
+    @State private var expandedBarWidth: CGFloat = 275
 
     public init(
         isExpanded: Binding<Bool>,
@@ -144,14 +145,43 @@ public struct FloatingToolbarView: View {
     /// Uses a single unified glass effect that morphs between collapsed circle and expanded pill.
     @available(macOS 26.0, *)
     private var morphingToolbar: some View {
-        GlassEffectContainer(spacing: 40) {
+        // One glass shape that changes size, anchored to the bottom-right corner: opening
+        // grows the bar out of the icon, closing shrinks it back into the icon in place.
+        // (Two separate glass shapes handing off made the icon pinch in mid-bar and roll
+        // to the corner, or jump to the middle before growing.)
+        ZStack(alignment: .trailing) {
             if isExpanded {
                 expandedMorphingContent
+                    .transition(.opacity.animation(.easeOut(duration: 0.18)))
             } else {
                 collapsedMorphingContent
+                    .transition(.opacity.animation(.easeOut(duration: 0.18)))
             }
         }
+        .frame(
+            width: isExpanded ? expandedBarWidth : Self.iconGlassSize,
+            height: isExpanded ? 52 : Self.iconGlassSize,
+            alignment: .trailing
+        )
+        // Keep the buttons inside the glass while it grows
+        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 14 : Self.iconGlassSize / 2, style: .continuous))
+        .glassEffect(
+            .regular.interactive(!isExpanded),
+            in: RoundedRectangle(cornerRadius: isExpanded ? 14 : Self.iconGlassSize / 2, style: .continuous)
+        )
+        // Collapsed, the circle sits 6 points in from the top and 10 from the right,
+        // giving the 58 x 50 footprint the window expects
+        .padding(.top, isExpanded ? 0 : 6)
+        .padding(.trailing, isExpanded ? 0 : 10)
+        .padding(.leading, isExpanded ? 0 : 4)
         .animation(.bouncy, value: isExpanded)
+        // The overall footprint jumps straight to its final size (no animation), so the
+        // window resizes once while the glass animates inside it
+        .frame(
+            width: isExpanded ? expandedBarWidth : 58,
+            height: isExpanded ? 52 : 50,
+            alignment: .bottomTrailing
+        )
         // Note: No manual shadows here — glassEffect provides its own depth and shadow.
         // Adding shadows to the GlassEffectContainer creates a rectangular outline
         // because the container has rectangular bounds, not rounded ones.
@@ -170,18 +200,13 @@ public struct FloatingToolbarView: View {
     @available(macOS 26.0, *)
     private var collapsedMorphingContent: some View {
         // The open-note count is drawn by the window, not here, so it doesn't ride
-        // the icon's slide-in spring (see CollapsedCountBadge)
+        // the icon's spring (see CollapsedCountBadge). Clicks and drags on the
+        // collapsed icon are handled by the window (FloatingToolbarWindowController.handleIconMouse).
         LoupeMark()
             .frame(width: 34, height: 30)
-            .frame(width: 52, height: 44)
-            .glassEffect(.regular.interactive(), in: Circle())
-            .glassEffectID("toolbar", in: glassNamespace)
-            .padding(.top, 6)
-            .padding(.trailing, 6)
+            .frame(width: Self.iconGlassSize, height: Self.iconGlassSize)
             .contentShape(Circle())
-        // Clicks and drags on the collapsed icon are handled by the window
-        // (FloatingToolbarWindowController.handleIconMouse)
-        .help("Click to open. Drag to move.")
+            .help("Click to open. Drag to move.")
     }
 
     /// Expanded state: Single unified glass effect spanning entire toolbar
@@ -237,16 +262,19 @@ public struct FloatingToolbarView: View {
                 label: "Exit",
                 isActive: false
             ) {
-                withAnimation(.bouncy) {
-                    isExpanded = false
-                }
+                // The toolbar animates this change itself (see morphingToolbar)
+                isExpanded = false
             }
         }
         .padding(8)
-        // Note: Using non-interactive glass so button taps pass through
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .glassEffectID("toolbar", in: glassNamespace) // Same ID as collapsed - enables morphing!
+        .fixedSize()
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            if abs(width - expandedBarWidth) > 0.5 { expandedBarWidth = width }
+        }
     }
+
+    /// Diameter of the collapsed icon's glass circle
+    static let iconGlassSize: CGFloat = 44
 
     // MARK: - Legacy Toolbar (Pre-macOS 26)
 

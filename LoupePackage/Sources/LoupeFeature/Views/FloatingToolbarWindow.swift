@@ -43,6 +43,15 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
 
     /// The latest size the toolbar content asked for, applied after the current layout pass
     private var pendingContentSize: CGSize?
+    /// The open bar's last size, so the window can make room before it opens
+    private var lastExpandedSize = NSSize(width: 275, height: 52)
+    /// A shrink waiting for the close animation to finish (see contentSizeChanged)
+    private var pendingShrink: DispatchWorkItem?
+    /// How long the bar takes to morph into the icon when closing, in seconds
+    static let closeMorphDuration: TimeInterval = 0.5
+    /// The collapsed icon's footprint in the window's bottom-right corner
+    /// (the 52 x 44 glass circle plus its 6-point top and right padding)
+    static let collapsedIconSize = NSSize(width: 58, height: 50)
 
     /// Where the pointer and window were when the collapsed icon started being dragged
     /// A press on the collapsed icon: where it started, and whether it became a drag
@@ -166,11 +175,26 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     /// The toolbar content reported a new size (it expanded, collapsed, or a badge appeared)
     func contentSizeChanged(_ size: CGSize) {
         pendingContentSize = size
-        // Resize after the current layout pass; resizing mid-layout makes AppKit apply it twice
-        DispatchQueue.main.async { [weak self] in
-            guard let self, let size = self.pendingContentSize else { return }
-            self.pendingContentSize = nil
-            self.applyContentSize(size)
+        pendingShrink?.cancel()
+        pendingShrink = nil
+        let apply = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let size = self.pendingContentSize else { return }
+                self.pendingContentSize = nil
+                self.pendingShrink = nil
+                self.applyContentSize(size)
+            }
+        }
+        // When closing, keep the window at full size until the bar has finished
+        // morphing into the icon. Shrinking straight away cut the morph off at the
+        // window's edge, so the icon popped in from the left instead.
+        let isClosing = !isExpanded && (window.map { size.width < $0.frame.width - 0.5 } ?? false)
+        if isClosing {
+            pendingShrink = apply
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.closeMorphDuration, execute: apply)
+        } else {
+            // Resize after the current layout pass; resizing mid-layout makes AppKit apply it twice
+            DispatchQueue.main.async(execute: apply)
         }
     }
 
@@ -180,6 +204,7 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         guard let window, size.width > 0, size.height > 0 else { return }
         let current = window.frame
         let newSize = NSSize(width: ceil(size.width), height: ceil(size.height))
+        if isExpanded { lastExpandedSize = newSize }
         guard abs(current.width - newSize.width) > 0.5 || abs(current.height - newSize.height) > 0.5 else { return }
 
         var frame = NSRect(
@@ -280,6 +305,15 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
                 iconPress = nil
                 return
             }
+            // While the window is still full size after closing, only the icon's corner counts
+            let iconArea = NSRect(
+                x: window.frame.width - Self.collapsedIconSize.width, y: 0,
+                width: Self.collapsedIconSize.width, height: Self.collapsedIconSize.height
+            )
+            guard iconArea.contains(event.locationInWindow) else {
+                iconPress = nil
+                return
+            }
             iconPress = IconPress(mouse: mouse, origin: window.frame.origin)
         case .leftMouseDragged:
             guard var press = iconPress, !isExpanded else { return }
@@ -308,10 +342,25 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     }
 
     private func openFromIcon() {
-        if #available(macOS 26.0, *) {
-            withAnimation(.bouncy) { isExpanded = true }
-        } else {
-            withAnimation(.smooth(duration: 0.4)) { isExpanded = true }
+        // Make room for the bar first, keeping the icon exactly where it is, then open
+        // on the next pass. Widening the window in the same moment as the animation
+        // made the icon jump to the middle and the bar grow outward from there.
+        if let window {
+            let current = window.frame
+            var frame = NSRect(
+                x: current.maxX - lastExpandedSize.width,
+                y: current.minY,
+                width: lastExpandedSize.width,
+                height: lastExpandedSize.height
+            )
+            let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+            if let index = Self.indexOfScreen(containing: current, screenFrames: visibleFrames) {
+                frame = Self.clamped(frame, into: visibleFrames[index])
+            }
+            window.setFrame(frame, display: true)
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.isExpanded = true
         }
     }
 
@@ -434,8 +483,8 @@ private struct CollapsedCountBadge: View {
     let isExpanded: Bool
     @State private var iconSettled = false
 
-    /// Roughly how long the icon's slide-in takes to come to rest
-    private static let settleDelay: Duration = .milliseconds(420)
+    /// Wait until the close morph has finished and the window has shrunk to the icon
+    private static let settleDelay: Duration = .milliseconds(Int(FloatingToolbarWindowController.closeMorphDuration * 1000) + 80)
 
     var body: some View {
         ZStack {
