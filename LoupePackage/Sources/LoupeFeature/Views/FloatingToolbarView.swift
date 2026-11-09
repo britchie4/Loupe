@@ -98,6 +98,9 @@ public struct FloatingToolbarView: View {
     let onClearAnnotations: () -> Void
     let onRefreshApps: () -> Void
     let onCheckForUpdates: () -> Void
+    /// Called as the collapsed icon is dragged, and when the drag ends
+    let onIconDragChanged: () -> Void
+    let onIconDragEnded: () -> Void
 
     /// State for settings popover
     @State private var isSettingsPopoverPresented = false
@@ -115,7 +118,9 @@ public struct FloatingToolbarView: View {
         onCopyFeedback: @escaping () -> Void,
         onClearAnnotations: @escaping () -> Void,
         onRefreshApps: @escaping () -> Void,
-        onCheckForUpdates: @escaping () -> Void = {}
+        onCheckForUpdates: @escaping () -> Void = {},
+        onIconDragChanged: @escaping () -> Void = {},
+        onIconDragEnded: @escaping () -> Void = {}
     ) {
         self._isExpanded = isExpanded
         self._selectedApp = selectedApp
@@ -127,6 +132,15 @@ public struct FloatingToolbarView: View {
         self.onClearAnnotations = onClearAnnotations
         self.onRefreshApps = onRefreshApps
         self.onCheckForUpdates = onCheckForUpdates
+        self.onIconDragChanged = onIconDragChanged
+        self.onIconDragEnded = onIconDragEnded
+    }
+
+    /// Dragging the collapsed icon moves it; a click without movement still opens the toolbar
+    private var iconDrag: some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { _ in onIconDragChanged() }
+            .onEnded { _ in onIconDragEnded() }
     }
 
     public var body: some View {
@@ -192,11 +206,13 @@ public struct FloatingToolbarView: View {
             }
         }
         .contentShape(Circle())
+        .help("Click to open. Drag to move.")
         .onTapGesture {
             withAnimation(.bouncy) {
                 isExpanded = true
             }
         }
+        .gesture(iconDrag)
     }
 
     /// Expanded state: Single unified glass effect spanning entire toolbar
@@ -290,6 +306,7 @@ public struct FloatingToolbarView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .animation(.smooth(duration: 0.4), value: isExpanded)
+        .help(isExpanded ? "" : "Click to open. Drag to move.")
         .onTapGesture {
             // Only expand when collapsed - when expanded, let inner buttons handle taps
             if !isExpanded {
@@ -298,6 +315,7 @@ public struct FloatingToolbarView: View {
                 }
             }
         }
+        .gesture(iconDrag, including: isExpanded ? .subviews : .all)
         .contextMenu {
             Button("Check for Updates…") {
                 onCheckForUpdates()

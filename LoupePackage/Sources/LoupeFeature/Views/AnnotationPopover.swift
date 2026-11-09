@@ -108,6 +108,9 @@ struct AnnotationPopover: View {
     /// Tallest the conversation gets before it scrolls
     private let maxThreadHeight: CGFloat = 340
 
+    /// How long the window takes to open or close a section, like the details
+    static let resizeAnimationDuration: Double = 0.22
+
     init(summary: NoteElementSummary, mode: Mode, windowState: NoteWindowState, onClose: @escaping () -> Void) {
         self.summary = summary
         self.mode = mode
@@ -123,6 +126,7 @@ struct AnnotationPopover: View {
             header
             if showDetails {
                 detailsView
+                    .transition(.opacity)
             }
             Divider().opacity(0.6)
             if let note {
@@ -181,7 +185,7 @@ struct AnnotationPopover: View {
                 StatusLabel(attention: attention)
             }
             Button {
-                withAnimation(.easeOut(duration: 0.15)) { showDetails.toggle() }
+                withAnimation(.smooth(duration: Self.resizeAnimationDuration)) { showDetails.toggle() }
             } label: {
                 Image(systemName: showDetails ? "info.circle.fill" : "info.circle")
                     .foregroundStyle(.secondary)
@@ -638,7 +642,10 @@ final class AnnotationPopoverController {
         // the window is sized here from the content's measured size and kept in step by
         // resizePanel, and the hosting view simply fills the window.
         let hostingController = NSHostingController(rootView: content)
-        hostingController.sizingOptions = []
+        // The hosting view takes the content's own height and hangs from the top of the window,
+        // so when the content grows or shrinks it never shifts while the window catches up.
+        // (The window itself is sized by resizePanel; the hosting view doesn't resize it.)
+        hostingController.sizingOptions = [.intrinsicContentSize]
         let measured = hostingController.sizeThatFits(in: NSSize(width: 340, height: 10_000))
         let contentSize = NSSize(width: ceil(measured.width), height: ceil(measured.height))
 
@@ -676,9 +683,7 @@ final class AnnotationPopoverController {
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             hostingView.leadingAnchor.constraint(equalTo: firstMouseContainer.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: firstMouseContainer.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: firstMouseContainer.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: firstMouseContainer.bottomAnchor)
+            hostingView.topAnchor.constraint(equalTo: firstMouseContainer.topAnchor)
         ])
 
         // The container stays the window's content view (so the window keeps it at the window's
@@ -922,8 +927,12 @@ final class AnnotationPopoverController {
         }
         panel.setFrame(frame, display: true)
         // The panel is transparent around the glass, so its shadow is traced from what's drawn.
-        // Recompute it after resizing, or the old outline lingers behind the window.
+        // Recompute it after resizing, or the old outline lingers behind the window, and again
+        // once the content has finished animating to its new size.
         panel.invalidateShadow()
+        DispatchQueue.main.asyncAfter(deadline: .now() + AnnotationPopover.resizeAnimationDuration + 0.05) { [weak panel] in
+            panel?.invalidateShadow()
+        }
     }
 
     /// Install event monitor to show wiggle animation when clicking outside the panel (modal behavior)

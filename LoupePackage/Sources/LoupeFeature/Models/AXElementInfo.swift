@@ -296,6 +296,13 @@ public struct TargetApp: Identifiable, Hashable {
     public let bundleIdentifier: String?
     public let icon: NSImage?
 
+    init(id: pid_t, name: String, bundleIdentifier: String? = nil, icon: NSImage? = nil) {
+        self.id = id
+        self.name = name
+        self.bundleIdentifier = bundleIdentifier
+        self.icon = icon
+    }
+
     public init(from app: NSRunningApplication) {
         self.id = app.processIdentifier
         self.name = app.localizedName ?? "Unknown"

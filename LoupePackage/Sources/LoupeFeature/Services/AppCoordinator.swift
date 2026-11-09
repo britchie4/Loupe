@@ -36,8 +36,8 @@ public final class AppCoordinator {
                 // Persist the selection
                 UserDefaults.standard.set(app.bundleIdentifier, forKey: DefaultsKeys.lastSelectedAppBundleID)
             } else {
+                // Keep the remembered app, so it comes back on its own when it relaunches
                 inspector.clearTargetApp()
-                UserDefaults.standard.removeObject(forKey: DefaultsKeys.lastSelectedAppBundleID)
             }
 
             // If toolbar is expanded, restart inspection on the new app
@@ -50,6 +50,7 @@ public final class AppCoordinator {
 
             // Update toolbar with new app selection
             floatingToolbar.updateSelectedApp(selectedApp)
+            publishAppList()
         }
     }
 
@@ -70,6 +71,10 @@ public final class AppCoordinator {
     /// Connects Loupe to coding agents (off until the user turns it on)
     public let agentLink = AgentLinkServer.shared
     private var agentLinkObserver: NSObjectProtocol?
+    private var workspaceObservers: [NSObjectProtocol] = []
+
+    /// Apps the person switched to, most recent first, so the picker can list them first
+    private var recentAppIDs: [pid_t] = []
 
     // MARK: - Initialization
 
@@ -114,8 +119,7 @@ public final class AppCoordinator {
 
     private func startInspection() {
         guard let app = selectedApp else {
-            // No app selected - collapse toolbar back
-            floatingToolbar.isExpanded = false
+            // No app selected: stay open so the person can pick one from the toolbar
             return
         }
 
@@ -213,7 +217,68 @@ public final class AppCoordinator {
     public func refreshApps() {
         inspector.refreshRunningApps()
         // Update toolbar with the new app list
-        floatingToolbar.updateAvailableApps(inspector.runningApps)
+        publishAppList()
+        reconcileSelectedApp()
+    }
+
+    /// Keep the selection pointing at a running app: follow it when it relaunches,
+    /// let go when it quits, and pick the remembered app back up when it returns.
+    private func reconcileSelectedApp() {
+        let apps = inspector.runningApps
+        guard let current = selectedApp else {
+            restoreLastSelectedApp()
+            return
+        }
+        if apps.contains(current) { return }
+
+        if let bundleID = current.bundleIdentifier,
+           let relaunched = apps.first(where: { $0.bundleIdentifier == bundleID }) {
+            selectedApp = relaunched
+        } else {
+            selectedApp = nil
+        }
+    }
+
+    /// Give the toolbar the open apps: the selected one first, then the most recently used
+    private func publishAppList() {
+        floatingToolbar.updateAvailableApps(AppListOrdering.ordered(
+            inspector.runningApps,
+            selectedID: selectedApp?.id,
+            recentIDs: recentAppIDs
+        ))
+    }
+
+    /// Refresh the app list whenever an app opens or quits, and note which app was used last
+    private func observeRunningApps() {
+        guard workspaceObservers.isEmpty else { return }
+        if let frontmost = NSWorkspace.shared.frontmostApplication {
+            recentAppIDs = [frontmost.processIdentifier]
+        }
+        let center = NSWorkspace.shared.notificationCenter
+        let names = [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification
+        ]
+        workspaceObservers = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.refreshApps()
+                }
+            }
+        }
+        workspaceObservers.append(center.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            let pid = app?.processIdentifier
+            MainActor.assumeIsolated {
+                guard let self, let pid, pid != ProcessInfo.processInfo.processIdentifier else { return }
+                self.recentAppIDs = AppListOrdering.noting(pid, in: self.recentAppIDs)
+                self.publishAppList()
+            }
+        })
     }
 
     // MARK: - App Lifecycle (called from AppDelegate)
@@ -230,6 +295,7 @@ public final class AppCoordinator {
         // Refresh apps and restore last selection
         refreshApps()
         restoreLastSelectedApp()
+        observeRunningApps()
         configureAgentLink()
 
         // Show the floating toolbar with a fade-in
@@ -252,7 +318,7 @@ public final class AppCoordinator {
         }
 
         // Update toolbar with initial state
-        floatingToolbar.updateAvailableApps(inspector.runningApps)
+        publishAppList()
         floatingToolbar.updateSelectedApp(selectedApp)
     }
 

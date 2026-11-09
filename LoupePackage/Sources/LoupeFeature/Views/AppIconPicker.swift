@@ -9,6 +9,9 @@ public struct AppIconPicker: View {
     let onRefresh: () -> Void
 
     @State private var isExpanded = false
+    @State private var query = ""
+    @State private var highlightedID: pid_t?
+    @FocusState private var isSearchFocused: Bool
 
     public init(
         selectedApp: Binding<TargetApp?>,
@@ -18,6 +21,11 @@ public struct AppIconPicker: View {
         self._selectedApp = selectedApp
         self.availableApps = availableApps
         self.onRefresh = onRefresh
+    }
+
+    /// Apps matching the search, in list order
+    private var matches: [TargetApp] {
+        AppListOrdering.filtered(availableApps, query: query)
     }
 
     public var body: some View {
@@ -34,8 +42,16 @@ public struct AppIconPicker: View {
             .frame(height: 36)
         }
         .buttonStyle(AppIconPickerButtonStyle())
+        .accessibilityLabel(selectedApp.map { "App to inspect: \($0.name)" } ?? "Choose an app to inspect")
         .popover(isPresented: $isExpanded, arrowEdge: .bottom) {
             appPickerPopover
+        }
+        .onAppear {
+            // With no app picked, open the list so the next step is obvious
+            guard selectedApp == nil else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if selectedApp == nil { isExpanded = true }
+            }
         }
     }
 
@@ -49,7 +65,7 @@ public struct AppIconPicker: View {
                     .interpolation(.high)
                     .frame(width: 34, height: 34)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .help("Target: \(app.name)\nClick to change")
+                    .help("Inspecting \(app.name). Click to change.")
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -60,7 +76,7 @@ public struct AppIconPicker: View {
                         .font(.system(size: 22))
                         .foregroundStyle(.secondary)
                 }
-                .help("Select target app")
+                .help("Choose an app to inspect")
             }
         }
     }
@@ -69,44 +85,119 @@ public struct AppIconPicker: View {
 
     private var appPickerPopover: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack {
-                Text("Select Target App")
-                    .font(.headline)
-
-                Spacer()
+            // Search, with refresh beside it
+            HStack(spacing: 6) {
+                searchField
 
                 Button {
                     onRefresh()
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh app list")
+                .help("Refresh the list")
+                .accessibilityLabel("Refresh the list")
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
             .padding(.vertical, 10)
 
             Divider()
 
             // App list
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(availableApps) { app in
-                        AppPickerRow(
-                            app: app,
-                            isSelected: selectedApp?.id == app.id
-                        ) {
-                            selectedApp = app
-                            isExpanded = false
+            if matches.isEmpty {
+                Text(availableApps.isEmpty ? "No open apps to inspect" : "No open app matches \u{201C}\(query)\u{201D}")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(matches) { app in
+                                AppPickerRow(
+                                    app: app,
+                                    isSelected: selectedApp?.id == app.id,
+                                    isHighlighted: highlightedID == app.id,
+                                    onHover: { highlightedID = app.id }
+                                ) {
+                                    choose(app)
+                                }
+                                .id(app.id)
+                            }
+                        }
+                        .padding(4)
+                    }
+                    .frame(maxHeight: 300)
+                    .onChange(of: highlightedID) { _, id in
+                        guard let id else { return }
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            proxy.scrollTo(id)
                         }
                     }
                 }
             }
-            .frame(maxHeight: 300)
         }
         .frame(width: 280)
+        .onAppear {
+            // Catch anything that changed while the list was closed, and start ready to type
+            onRefresh()
+            query = ""
+            highlightedID = availableApps.first?.id
+            isSearchFocused = true
+        }
+        .onChange(of: query) {
+            highlightedID = matches.first?.id
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            TextField("Choose an app to inspect", text: $query)
+                .textFieldStyle(.plain)
+                .accessibilityLabel("Search open apps")
+                .focused($isSearchFocused)
+                .onSubmit {
+                    if let app = matches.first(where: { $0.id == highlightedID }) ?? matches.first {
+                        choose(app)
+                    }
+                }
+                .onKeyPress(.downArrow) {
+                    moveHighlight(by: 1)
+                    return .handled
+                }
+                .onKeyPress(.upArrow) {
+                    moveHighlight(by: -1)
+                    return .handled
+                }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+    }
+
+    private func moveHighlight(by step: Int) {
+        let list = matches
+        guard !list.isEmpty else { return }
+        let current = list.firstIndex { $0.id == highlightedID } ?? (step > 0 ? -1 : list.count)
+        let next = min(max(current + step, 0), list.count - 1)
+        highlightedID = list[next].id
+    }
+
+    private func choose(_ app: TargetApp) {
+        selectedApp = app
+        isExpanded = false
     }
 }
 
@@ -127,9 +218,9 @@ private struct AppIconPickerButtonStyle: ButtonStyle {
 private struct AppPickerRow: View {
     let app: TargetApp
     let isSelected: Bool
+    let isHighlighted: Bool
+    let onHover: () -> Void
     let onSelect: () -> Void
-
-    @State private var isHovered = false
 
     var body: some View {
         Button(action: onSelect) {
@@ -159,17 +250,18 @@ private struct AppPickerRow: View {
                         .foregroundStyle(Color.loupeAccent)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                    .fill(isHighlighted ? Color.primary.opacity(0.1) : Color.clear)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .onHover { hovering in
-            isHovered = hovering
+            if hovering { onHover() }
         }
     }
 }

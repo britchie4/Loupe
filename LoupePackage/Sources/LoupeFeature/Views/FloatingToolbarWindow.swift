@@ -40,10 +40,15 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     var annotationStore: AnnotationStore?
     private var hostingView: NSHostingView<AnyView>?
     private var cancellables = Set<AnyCancellable>()
-    private var frameObserver: NSObjectProtocol?
 
-    /// Tracks the right edge position to anchor during resize
-    private var anchoredRightEdge: CGFloat?
+    /// The latest size the toolbar content asked for, applied after the current layout pass
+    private var pendingContentSize: CGSize?
+
+    /// Where the pointer and window were when the collapsed icon started being dragged
+    private var iconDragStart: (mouse: NSPoint, origin: NSPoint)?
+
+    /// Remembers where the person left the collapsed icon
+    private static let savedFrameKey = "loupe.toolbarCollapsedFrame"
 
     /// Published annotation count for reactive updates
     @Published private(set) var annotationCount: Int = 0
@@ -72,7 +77,8 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         window.hasShadow = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        window.isMovableByWindowBackground = true
+        // Collapsed, the icon moves with its own drag (see iconDragChanged); expanded, the bar's background drags it
+        window.isMovableByWindowBackground = false
 
         super.init(window: window)
 
@@ -111,10 +117,13 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         let toolbarView = FloatingToolbarHostView(controller: self)
 
         let hosting = NSHostingView(rootView: AnyView(toolbarView))
+        // The window is sized here (see applyContentSize), in one step that keeps the right
+        // and bottom edges still. Letting the hosting view resize the window itself grew it
+        // to the right first and moved it back a moment later, which made the toolbar jump.
+        hosting.sizingOptions = []
         hosting.frame = window?.contentView?.bounds ?? .zero
         hosting.autoresizingMask = [.width, .height]
 
-        // Let SwiftUI size the window naturally
         window?.contentView = hosting
         hostingView = hosting
     }
@@ -126,20 +135,10 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
             .dropFirst() // Skip initial value
             .sink { [weak self] expanded in
                 guard let self = self, let window = self.window else { return }
-                // Capture current right edge BEFORE the resize happens
-                self.anchoredRightEdge = window.frame.maxX
+                window.isMovableByWindowBackground = expanded
                 self.handleExpandedChange(expanded)
             }
             .store(in: &cancellables)
-
-        // Observe window frame changes to adjust origin (keep right edge anchored)
-        frameObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResizeNotification,
-            object: window,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleWindowResize()
-        }
     }
 
     private func handleExpandedChange(_ expanded: Bool) {
@@ -150,43 +149,55 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         }
     }
 
-    /// Called when window resizes (triggered by SwiftUI content change).
-    /// Adjusts the window origin to keep the right edge anchored.
-    private func handleWindowResize() {
-        guard let window = window,
-              let anchoredRightEdge = anchoredRightEdge else { return }
-
-        let currentFrame = window.frame
-
-        // Calculate where origin should be to keep right edge anchored
-        let targetOriginX = anchoredRightEdge - currentFrame.width
-
-        // Only adjust if there's a meaningful difference
-        if abs(currentFrame.origin.x - targetOriginX) > 1 {
-            var newFrame = currentFrame
-            newFrame.origin.x = targetOriginX
-
-            // Ensure window stays on screen
-            if let screen = window.screen ?? NSScreen.main {
-                let screenFrame = screen.visibleFrame
-                let padding: CGFloat = 20
-
-                // Don't let left edge go off screen
-                if newFrame.origin.x < screenFrame.minX + padding {
-                    newFrame.origin.x = screenFrame.minX + padding
-                }
-
-                // Don't let right edge go off screen
-                if newFrame.maxX > screenFrame.maxX - padding {
-                    newFrame.origin.x = screenFrame.maxX - newFrame.width - padding
-                }
-            }
-
-            window.setFrame(newFrame, display: false)
+    /// The toolbar content reported a new size (it expanded, collapsed, or a badge appeared)
+    func contentSizeChanged(_ size: CGSize) {
+        pendingContentSize = size
+        // Resize after the current layout pass; resizing mid-layout makes AppKit apply it twice
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let size = self.pendingContentSize else { return }
+            self.pendingContentSize = nil
+            self.applyContentSize(size)
         }
+    }
 
-        // Clear the anchor after handling
-        self.anchoredRightEdge = nil
+    /// Fit the window to the content in one step, keeping its right and bottom edges where
+    /// they are (so it grows to the left) and keeping it on the display it is on now.
+    private func applyContentSize(_ size: CGSize) {
+        guard let window, size.width > 0, size.height > 0 else { return }
+        let current = window.frame
+        let newSize = NSSize(width: ceil(size.width), height: ceil(size.height))
+        guard abs(current.width - newSize.width) > 0.5 || abs(current.height - newSize.height) > 0.5 else { return }
+
+        var frame = NSRect(
+            x: current.maxX - newSize.width,
+            y: current.minY,
+            width: newSize.width,
+            height: newSize.height
+        )
+        let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+        if let index = Self.indexOfScreen(containing: current, screenFrames: visibleFrames) {
+            frame = Self.clamped(frame, into: visibleFrames[index])
+        }
+        window.setFrame(frame, display: true)
+        saveCollapsedFrame()
+    }
+
+    /// The display that holds the middle of `frame`, falling back to the one it overlaps most
+    static func screen(containing frame: NSRect, in screens: [NSScreen] = NSScreen.screens) -> NSScreen? {
+        indexOfScreen(containing: frame, screenFrames: screens.map(\.frame)).map { screens[$0] }
+    }
+
+    /// Index of the display frame that holds the middle of `frame`, or else the one it overlaps most
+    static func indexOfScreen(containing frame: NSRect, screenFrames: [NSRect]) -> Int? {
+        let center = NSPoint(x: frame.midX, y: frame.midY)
+        if let match = screenFrames.firstIndex(where: { $0.contains(center) }) {
+            return match
+        }
+        func overlap(_ screen: NSRect) -> CGFloat {
+            let shared = screen.intersection(frame)
+            return shared.isNull ? 0 : shared.width * shared.height
+        }
+        return screenFrames.indices.max { overlap(screenFrames[$0]) < overlap(screenFrames[$1]) }
     }
 
     private func positionWindow() {
@@ -196,8 +207,22 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         DispatchQueue.main.async { [weak self] in
             guard let self = self, let window = self.window else { return }
 
-            let screenFrame = screen.visibleFrame
             let size = window.frame.size  // Use actual size from SwiftUI content
+
+            // Go back to where the person left it, as long as that display is still connected
+            if let saved = UserDefaults.standard.string(forKey: Self.savedFrameKey) {
+                let previous = NSRectFromString(saved)
+                // Keep the saved right and bottom edges, the ones the toolbar grows from
+                let savedFrame = NSRect(x: previous.maxX - size.width, y: previous.minY, width: size.width, height: size.height)
+                let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+                if let index = Self.indexOfScreen(containing: savedFrame, screenFrames: visibleFrames) {
+                    let frame = Self.clamped(savedFrame, into: visibleFrames[index])
+                    window.setFrame(frame, display: true)
+                    return
+                }
+            }
+
+            let screenFrame = screen.visibleFrame
 
             // Position at bottom-right with padding
             let origin = NSPoint(
@@ -207,6 +232,58 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
 
             window.setFrame(NSRect(origin: origin, size: size), display: true)
         }
+    }
+
+    /// `frame` moved just enough to sit inside `visible`, keeping a small margin
+    static func clamped(_ frame: NSRect, into visible: NSRect, padding: CGFloat = 8) -> NSRect {
+        var result = frame
+        result.origin.x = min(max(frame.minX, visible.minX + padding), visible.maxX - frame.width - padding)
+        result.origin.y = min(max(frame.minY, visible.minY + padding), visible.maxY - frame.height - padding)
+        return result
+    }
+
+    // MARK: - Moving the Icon
+
+    /// Follow the pointer while the collapsed icon is dragged, with a closed hand
+    func iconDragChanged() {
+        guard let window, !isExpanded else { return }
+        // Read the pointer from the drag event itself, in screen coordinates
+        let mouse: NSPoint
+        if let event = NSApp.currentEvent, event.window === window {
+            mouse = window.convertPoint(toScreen: event.locationInWindow)
+        } else {
+            mouse = NSEvent.mouseLocation
+        }
+        if iconDragStart == nil {
+            iconDragStart = (mouse, window.frame.origin)
+            NSCursor.closedHand.push()
+        }
+        guard let start = iconDragStart else { return }
+        window.setFrameOrigin(NSPoint(
+            x: start.origin.x + mouse.x - start.mouse.x,
+            y: start.origin.y + mouse.y - start.mouse.y
+        ))
+    }
+
+    /// Settle the icon fully on the display it was dropped on
+    func iconDragEnded() {
+        guard iconDragStart != nil else { return }
+        iconDragStart = nil
+        NSCursor.pop()
+        guard let window else { return }
+        let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+        if let index = Self.indexOfScreen(containing: window.frame, screenFrames: visibleFrames) {
+            let frame = Self.clamped(window.frame, into: visibleFrames[index])
+            if frame != window.frame {
+                window.setFrame(frame, display: true, animate: true)
+            }
+        }
+        saveCollapsedFrame()
+    }
+
+    private func saveCollapsedFrame() {
+        guard let window, !isExpanded, pendingContentSize == nil else { return }
+        UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: Self.savedFrameKey)
     }
 
     // MARK: - Public Methods
@@ -288,7 +365,19 @@ private struct FloatingToolbarHostView: View {
             },
             onCheckForUpdates: {
                 controller.onCheckForUpdates?()
+            },
+            onIconDragChanged: {
+                controller.iconDragChanged()
+            },
+            onIconDragEnded: {
+                controller.iconDragEnded()
             }
         )
+        .fixedSize()
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            controller.contentSizeChanged(size)
+        }
+        // Hug the window's right and bottom edges, the ones that stay still while it resizes
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
 }
