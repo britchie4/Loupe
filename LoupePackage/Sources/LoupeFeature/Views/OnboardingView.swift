@@ -208,6 +208,7 @@ struct OnboardingView: View {
                 instructionRow(number: "2", text: "**Annotate:** click to describe the change you want")
                 instructionRow(number: "3", text: "**Copy:** one click copies structured context")
                 instructionRow(number: "4", text: "**Paste:** feed it to Claude Code, Cursor, Codex, or any of your favorite coding agents")
+                instructionRow(number: "5", text: "**Or skip the pasting:** turn on Agent Link in Settings, and your agent reads your notes and replies right in Loupe")
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
