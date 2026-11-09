@@ -63,7 +63,11 @@ public final class LoupeSettings {
     private enum Keys {
         static let outputFormat = "loupe.outputFormat"
         static let namingStyle = "loupe.namingStyle"
+        static let agentLinkEnabled = "loupe.agentLinkEnabled"
     }
+
+    /// Posted when Agent Link is turned on or off
+    public static let agentLinkEnabledDidChange = Notification.Name("loupe.agentLinkEnabledDidChange")
 
     // MARK: - Properties
 
@@ -78,6 +82,14 @@ public final class LoupeSettings {
     public var namingStyle: NamingStyle {
         didSet {
             UserDefaults.standard.set(namingStyle.rawValue, forKey: Keys.namingStyle)
+        }
+    }
+
+    /// Whether coding agents may connect to Loupe (off until the user turns it on)
+    public var agentLinkEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(agentLinkEnabled, forKey: Keys.agentLinkEnabled)
+            NotificationCenter.default.post(name: Self.agentLinkEnabledDidChange, object: self)
         }
     }
 
@@ -98,6 +110,8 @@ public final class LoupeSettings {
         } else {
             self.namingStyle = .humanized
         }
+
+        self.agentLinkEnabled = UserDefaults.standard.bool(forKey: Keys.agentLinkEnabled)
     }
 
     // MARK: - Reset

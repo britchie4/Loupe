@@ -1,7 +1,6 @@
 import SwiftUI
 import LoupeFeature
 
-@main
 struct LoupeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 

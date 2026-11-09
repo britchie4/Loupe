@@ -60,9 +60,86 @@ public struct SettingsView: View {
                     .foregroundStyle(.quaternary)
             }
 
+            Divider()
+
+            AgentLinkSettingsSection(settings: settings)
         }
         .padding(16)
-        .frame(width: 260)
+        .frame(width: 300)
+    }
+}
+
+// MARK: - Agent Link
+
+/// Turns Agent Link on or off, shows whether an agent is connected, and offers setup commands
+private struct AgentLinkSettingsSection: View {
+    @Bindable var settings: LoupeSettings
+    private let server = AgentLinkServer.shared
+    @State private var copiedCommand: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $settings.agentLinkEnabled) {
+                Text("Agent Link")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Text("Lets your coding agent read your notes, reply, and mark them done. Agents can look at the app you picked but can never click or type.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if settings.agentLinkEnabled {
+                statusLine
+
+                Text("Set up once in your agent:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+
+                HStack {
+                    copyButton("Copy for Claude Code", command: AgentLinkServer.claudeCodeSetupCommand)
+                    copyButton("Copy for Codex", command: AgentLinkServer.codexSetupCommand)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        switch server.status {
+        case .listening:
+            Label(
+                server.connectedAgents.isEmpty
+                    ? "Ready. No agent connected yet."
+                    : "Connected: \(server.connectedAgents.joined(separator: ", "))",
+                systemImage: "circle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(server.connectedAgents.isEmpty ? Color.secondary : Color.green)
+            .symbolRenderingMode(.monochrome)
+            .imageScale(.small)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        case .off:
+            EmptyView()
+        }
+    }
+
+    private func copyButton(_ title: String, command: String) -> some View {
+        Button(copiedCommand == command ? "Copied" : title) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
+            copiedCommand = command
+        }
+        .controlSize(.small)
+        .help(command)
     }
 }
 

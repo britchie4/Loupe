@@ -67,6 +67,10 @@ public final class AppCoordinator {
     /// Checks for and installs new Loupe releases
     public let updater = SoftwareUpdater()
 
+    /// Connects Loupe to coding agents (off until the user turns it on)
+    public let agentLink = AgentLinkServer.shared
+    private var agentLinkObserver: NSObjectProtocol?
+
     // MARK: - Initialization
 
     public init() {
@@ -226,6 +230,7 @@ public final class AppCoordinator {
         // Refresh apps and restore last selection
         refreshApps()
         restoreLastSelectedApp()
+        configureAgentLink()
 
         // Show the floating toolbar with a fade-in
         if let toolbarWindow = floatingToolbar.window {
@@ -251,6 +256,26 @@ public final class AppCoordinator {
         floatingToolbar.updateSelectedApp(selectedApp)
     }
 
+    // MARK: - Agent Link
+
+    /// Give agents their tools, and follow the Agent Link setting
+    private func configureAgentLink() {
+        agentLink.tools = AgentLinkTools.make(coordinator: self)
+        agentLink.setEnabled(floatingToolbar.settings.agentLinkEnabled)
+
+        guard agentLinkObserver == nil else { return }
+        agentLinkObserver = NotificationCenter.default.addObserver(
+            forName: LoupeSettings.agentLinkEnabledDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.agentLink.setEnabled(self.floatingToolbar.settings.agentLinkEnabled)
+            }
+        }
+    }
+
     /// Restore the previously selected app if it's still running
     private func restoreLastSelectedApp() {
         guard let lastBundleID = UserDefaults.standard.string(forKey: DefaultsKeys.lastSelectedAppBundleID) else {
@@ -272,6 +297,7 @@ public final class AppCoordinator {
 
     /// Cleanup before app terminates
     public func cleanup() {
+        agentLink.stop()
         stopInspection()
         onboardingWindow.dismiss()
         toolbarTipController.dismiss()
