@@ -248,14 +248,7 @@ public struct AXElementInfo: Identifiable, Equatable {
     public func displayLabel(style: NamingStyle) -> String {
         switch style {
         case .humanized:
-            let cleanRole = role.hasPrefix("AX") ? String(role.dropFirst(2)).lowercased() : role.lowercased()
-            if let t = title, !t.isEmpty {
-                return "\(cleanRole) \"\(t)\""
-            } else if let id = identifier, !id.isEmpty {
-                return "\(cleanRole) (\(id))"
-            } else {
-                return cleanRole
-            }
+            return ElementKind.label(role: role, title: title, value: value, identifier: identifier)
         case .technical:
             var attrs: [String] = []
             if let id = identifier, !id.isEmpty {

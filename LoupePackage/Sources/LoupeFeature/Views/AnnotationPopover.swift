@@ -4,41 +4,58 @@ extension Notification.Name {
     static let loupePopoverReadyForFocus = Notification.Name("loupePopoverReadyForFocus")
 }
 
-/// What the popover shows about the element a note is attached to.
+/// What the note window shows about the element a note is attached to.
 /// Built from a live element (new note) or from a saved note (existing note).
 struct NoteElementSummary {
-    let title: String
+    /// Plain-language kind and app, e.g. "Menu in TextEdit"
+    let kindLine: String
+    /// The words on the element, e.g. "\"Regular\"", or the kind when it has none
+    let nameLine: String
+    /// Technical details for the Details section (raw accessibility names, for developers)
     let details: [(label: String, value: String)]
 
-    init(element: AXElementInfo, namingStyle: NamingStyle) {
-        title = element.displayLabel(style: namingStyle)
-        details = Self.rows(
+    init(element: AXElementInfo, appName: String?) {
+        self.init(
             role: element.role,
             identifier: element.identifier,
             title: element.title,
             value: element.value,
-            path: element.hierarchyPath
+            path: element.hierarchyPath,
+            appName: appName
         )
     }
 
-    init(annotation: Annotation, namingStyle: NamingStyle) {
-        title = annotation.displayLabel(style: namingStyle)
-        details = Self.rows(
+    init(annotation: Annotation) {
+        self.init(
             role: annotation.elementRole,
             identifier: annotation.elementIdentifier,
             title: annotation.elementTitle,
             value: annotation.elementValue,
-            path: annotation.hierarchyPath
+            path: annotation.hierarchyPath,
+            appName: annotation.appName
         )
     }
 
-    private static func rows(
+    private init(
         role: String,
         identifier: String?,
         title: String?,
         value: String?,
-        path: [HierarchyNode]
-    ) -> [(label: String, value: String)] {
+        path: [HierarchyNode],
+        appName: String?
+    ) {
+        let kind = ElementKind.name(forRole: role)
+        if let appName, !appName.isEmpty {
+            kindLine = "\(kind) in \(appName)"
+        } else {
+            kindLine = kind
+        }
+        if let visible = ElementKind.visibleText(title: title, value: value, identifier: identifier) {
+            nameLine = "\u{201C}\(visible)\u{201D}"
+        } else {
+            nameLine = kind
+        }
+
         var rows: [(label: String, value: String)] = [("Role", role)]
         if let identifier, !identifier.isEmpty { rows.append(("Identifier", identifier)) }
         if let title, !title.isEmpty { rows.append(("Title", title)) }
@@ -46,145 +63,408 @@ struct NoteElementSummary {
         if !path.isEmpty {
             rows.append(("Path", path.map { $0.annotatedString }.joined(separator: " > ")))
         }
-        return rows
+        details = rows
     }
 }
 
-/// Popover view for adding or editing an annotation on an accessibility element
+/// Shared between the note window and its panel controller: whether the user has typed
+/// something unsaved (which makes the window hold on to clicks elsewhere), and the window's size.
+@MainActor
+final class NoteWindowState: ObservableObject {
+    @Published var hasUnsavedInput = false
+    var onSizeChange: ((CGSize) -> Void)?
+}
+
+/// The note window: write a new note, or follow the conversation on an existing one
 struct AnnotationPopover: View {
+    enum Mode {
+        case new(onAdd: (String) -> Void)
+        case existing(
+            note: Annotation,
+            onEdit: (String) -> Annotation?,
+            onReply: (String) -> Annotation?,
+            onDelete: () -> Void
+        )
+    }
+
+    private enum Field: Hashable {
+        case newNote, reply, edit
+    }
+
     let summary: NoteElementSummary
-    /// The saved note being opened, or nil when writing a new one
-    let existingNote: Annotation?
-    let onSave: (String) -> Void
-    let onDelete: (() -> Void)?
-    let onCancel: () -> Void
+    let mode: Mode
+    let onClose: () -> Void
+    @ObservedObject var windowState: NoteWindowState
 
-    @State private var annotationText: String
-    @State private var isDetailsExpanded = false
-    @FocusState private var isTextFieldFocused: Bool
+    @State private var note: Annotation?
+    @State private var newText = ""
+    @State private var replyText = ""
+    @State private var editText = ""
+    @State private var isEditing = false
+    @State private var showDetails = false
+    @State private var threadHeight: CGFloat = 0
+    @FocusState private var focus: Field?
 
-    init(
-        summary: NoteElementSummary,
-        existingNote: Annotation? = nil,
-        onSave: @escaping (String) -> Void,
-        onDelete: (() -> Void)? = nil,
-        onCancel: @escaping () -> Void
-    ) {
+    /// Tallest the conversation gets before it scrolls
+    private let maxThreadHeight: CGFloat = 340
+
+    init(summary: NoteElementSummary, mode: Mode, windowState: NoteWindowState, onClose: @escaping () -> Void) {
         self.summary = summary
-        self.existingNote = existingNote
-        self.onSave = onSave
-        self.onDelete = onDelete
-        self.onCancel = onCancel
-        self._annotationText = State(initialValue: existingNote?.text ?? "")
+        self.mode = mode
+        self.windowState = windowState
+        self.onClose = onClose
+        if case .existing(let note, _, _, _) = mode {
+            self._note = State(initialValue: note)
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Expandable element details header
-            DisclosureGroup(isExpanded: $isDetailsExpanded) {
-                elementDetailsView
-            } label: {
-                Text(summary.title)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            if showDetails {
+                detailsView
             }
-
-            if let note = existingNote {
-                statusView(for: note)
-            }
-
-            Divider()
-
-            // Feedback text input with explicit focus styling
-            TextField("What should change?", text: $annotationText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(3...6)
-                .focused($isTextFieldFocused)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isTextFieldFocused ? Color.loupeAccent : Color(nsColor: .separatorColor), lineWidth: isTextFieldFocused ? 2 : 1)
-                )
-
-            // Action buttons
-            HStack {
-                if let onDelete {
-                    Button("Delete", role: .destructive) {
-                        onDelete()
-                    }
-                }
-                Spacer()
-                Button("Cancel") {
-                    onCancel()
-                }
-                    .keyboardShortcut(.cancelAction)
-                Button(existingNote == nil ? "Add" : "Save") {
-                    onSave(annotationText)
-                }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(annotationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Divider().opacity(0.6)
+            if let note {
+                thread(for: note)
+                Divider().opacity(0.6)
+                composer(for: note)
+                Divider().opacity(0.6)
+                footer
+            } else {
+                newNoteBody
             }
         }
-        .padding()
-        .frame(width: 320)
+        .frame(width: 340)
+        .fixedSize(horizontal: false, vertical: true)
         .popoverBackground()
         .tint(Color.loupeAccent)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            windowState.onSizeChange?(size)
+        }
+        .onChange(of: newText) { updateUnsavedInput() }
+        .onChange(of: replyText) { updateUnsavedInput() }
+        .onChange(of: editText) { updateUnsavedInput() }
+        .onChange(of: isEditing) { updateUnsavedInput() }
         .onReceive(NotificationCenter.default.publisher(for: .loupePopoverReadyForFocus)) { _ in
-            isTextFieldFocused = true
+            let target = initialFocus
+            focus = target
             // Defensive retry: if SwiftUI silently drops the focus assignment
             // (e.g. view not yet in responder chain), try again after a short delay
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if !isTextFieldFocused {
-                    isTextFieldFocused = true
+                if focus != target {
+                    focus = target
                 }
             }
         }
     }
 
-    /// Status line and any replies for a saved note
-    private func statusView(for note: Annotation) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(note.status.displayName)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(note.status.isOpen ? Color.loupeAccent : Color.secondary)
+    // MARK: Header
 
-            ForEach(note.replies) { reply in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(reply.author == .agent ? "Agent" : "You")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(reply.text)
-                        .font(.callout)
-                        .textSelection(.enabled)
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
+    private var attention: NoteAttention? {
+        note.map(NoteAttention.init(note:))
     }
 
-    private var elementDetailsView: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var header: some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(summary.kindLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(summary.nameLine)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
+            if let attention {
+                StatusLabel(attention: attention)
+            }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { showDetails.toggle() }
+            } label: {
+                Image(systemName: showDetails ? "info.circle.fill" : "info.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(showDetails ? "Hide details" : "Show details")
+            .accessibilityLabel(showDetails ? "Hide element details" : "Show element details")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private var detailsView: some View {
+        VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(summary.details.enumerated()), id: \.offset) { _, row in
-                detailRow(row.label, row.value)
+                HStack(alignment: .top, spacing: 8) {
+                    Text(row.label)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 64, alignment: .trailing)
+                    Text(row.value)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 10)
+    }
+
+    // MARK: New note
+
+    private var newNoteBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            inputField("What should change?", text: $newText, lines: 3...6)
+                .focused($focus, equals: .newNote)
+            HStack {
+                Spacer()
+                Button("Cancel") { onClose() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") {
+                    if case .new(let onAdd) = mode { onAdd(newText) }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(isBlank(newText))
+            }
+        }
+        .padding(14)
+    }
+
+    // MARK: Conversation
+
+    private func thread(for note: Annotation) -> some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 12) {
+                userNoteMessage(note)
+                ForEach(note.replies) { reply in
+                    MessageBubble(
+                        author: reply.author == .agent ? "Agent" : "You",
+                        time: reply.createdAt,
+                        isMine: reply.author == .user
+                    ) {
+                        Text(reply.text)
+                    }
+                }
+                if note.replies.isEmpty, note.status == .pending {
+                    Text("No agent has picked this up yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { threadHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: min(max(threadHeight, 1), maxThreadHeight))
+    }
+
+    @ViewBuilder
+    private func userNoteMessage(_ note: Annotation) -> some View {
+        MessageBubble(
+            author: "You",
+            time: note.createdAt,
+            isMine: true,
+            action: isEditing ? nil : ("Edit", { startEditing(note) })
+        ) {
+            if isEditing {
+                VStack(alignment: .trailing, spacing: 8) {
+                    inputField("What should change?", text: $editText, lines: 2...6)
+                        .focused($focus, equals: .edit)
+                    HStack(spacing: 8) {
+                        Button("Cancel") { isEditing = false }
+                            .controlSize(.small)
+                        Button("Save") { saveEdit() }
+                            .controlSize(.small)
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(isBlank(editText))
+                    }
+                }
+            } else {
+                Text(note.text)
+            }
+        }
+    }
+
+    // MARK: Reply box
+
+    private func composer(for note: Annotation) -> some View {
+        let isClosed = !note.status.isOpen
+        let placeholder: String
+        if isClosed {
+            placeholder = "Add a follow-up to reopen"
+        } else if attention == .questionForYou {
+            placeholder = "Answer the agent"
+        } else {
+            placeholder = "Add more detail"
+        }
+
+        return HStack(alignment: .bottom, spacing: 8) {
+            inputField(placeholder, text: $replyText, lines: 1...5)
+                .focused($focus, equals: .reply)
+            let send = Button(isClosed ? "Reopen" : "Send") { sendReply() }
+                .disabled(isBlank(replyText))
+            if isEditing {
+                send
+            } else {
+                send.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var footer: some View {
+        HStack {
+            Button("Delete note", role: .destructive) {
+                if case .existing(_, _, _, let onDelete) = mode { onDelete() }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.red.opacity(0.85))
+            Spacer()
+            Button("Close") { onClose() }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+        }
+        .font(.callout)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
 
-    private func detailRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text("\(label):")
-                .foregroundStyle(.tertiary)
-                .frame(width: 70, alignment: .trailing)
-            Text(value)
+    // MARK: Pieces
+
+    private func inputField(_ placeholder: String, text: Binding<String>, lines: ClosedRange<Int>) -> some View {
+        TextField(placeholder, text: text, axis: .vertical)
+            .textFieldStyle(.plain)
+            .lineLimit(lines)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .textBackgroundColor).opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+            )
+    }
+
+    // MARK: Actions
+
+    private var initialFocus: Field? {
+        guard let note else { return .newNote }
+        return NoteAttention(note: note).focusesReply ? .reply : nil
+    }
+
+    private func startEditing(_ note: Annotation) {
+        editText = note.text
+        isEditing = true
+        DispatchQueue.main.async { focus = .edit }
+    }
+
+    private func saveEdit() {
+        guard case .existing(_, let onEdit, _, _) = mode, !isBlank(editText) else { return }
+        if let updated = onEdit(editText) { note = updated }
+        isEditing = false
+    }
+
+    private func sendReply() {
+        guard case .existing(_, _, let onReply, _) = mode, !isBlank(replyText) else { return }
+        if let updated = onReply(replyText) { note = updated }
+        replyText = ""
+        focus = .reply
+    }
+
+    private func updateUnsavedInput() {
+        let editing = isEditing && editText != (note?.text ?? "")
+        windowState.hasUnsavedInput = !isBlank(newText) || !isBlank(replyText) || editing
+    }
+
+    private func isBlank(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+// MARK: - Message bubble
+
+/// One message in a note's conversation: who wrote it, when, and the text
+private struct MessageBubble<Content: View>: View {
+    let author: String
+    let time: Date
+    let isMine: Bool
+    var action: (label: String, perform: () -> Void)? = nil
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(author)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(Self.timeLabel(time))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                if let action {
+                    Button(action.label, action: action.perform)
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(Color.loupeAccent)
+                }
+            }
+            content
+                .font(.callout)
                 .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isMine ? Color.loupeAccent.opacity(0.16) : Color.primary.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(isMine ? Color.loupeAccent.opacity(0.35) : Color.primary.opacity(0.08), lineWidth: 1)
+                )
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(author), \(Self.timeLabel(time))")
+    }
+
+    static func timeLabel(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+    }
+}
+
+// MARK: - Status label
+
+/// The colored label in the header that says what the note needs
+private struct StatusLabel: View {
+    let attention: NoteAttention
+
+    private var color: Color {
+        switch attention {
+        case .waiting, .agentWorking: return .loupeAccent
+        case .questionForYou, .agentReplied: return .blue
+        case .done: return .green
+        case .dismissed: return .secondary
+        }
+    }
+
+    var body: some View {
+        Text(attention.label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(color.opacity(0.18)))
+            .fixedSize()
+            .accessibilityLabel("Status: \(attention.label)")
     }
 }
 
@@ -237,59 +517,130 @@ final class AnnotationPopoverController {
     private var clickMonitor: Any?
     private var keyMonitor: Any?
     private var onDismissCallback: (() -> Void)?
+    /// Unsaved typing and size reports from the open note window
+    private var windowState: NoteWindowState?
+    /// Whether the cursor goes into a text box when the window opens
+    private var focusesOnOpen = true
+    /// The content's latest reported size, kept even before the panel exists so the panel
+    /// can catch up with a size reported while it was being created
+    private var lastContentSize: CGSize?
+    /// Keeps the open note window's SwiftUI content alive
+    private var hostingController: NSViewController?
 
     /// Spacing between element and panel edge
     private let panelOffset: CGFloat = 8
 
-    /// Show the annotation popover adjacent to an element
+    /// Show the window for writing a new note on an element
     /// - Parameters:
     ///   - elementFrame: The element's frame in screen coordinates (AppKit: origin at bottom-left)
-    ///   - preferredEdge: Which edge of the element to attach the popover to
+    ///   - preferredEdge: Which edge of the element to attach the window to
     ///   - summary: What to show about the element
-    ///   - existingNote: The saved note being opened, or nil for a new note
-    ///   - onSave: Callback when user saves the annotation
-    ///   - onDelete: Callback when user deletes an existing note
-    ///   - onDismiss: Callback when popover is dismissed
-    func show(
+    ///   - onAdd: Called with the note's text when the user adds it
+    ///   - onDismiss: Called when the window closes
+    func showNewNote(
         forElementFrame elementFrame: NSRect,
         preferredEdge: NSRectEdge,
         summary: NoteElementSummary,
-        existingNote: Annotation? = nil,
-        onSave: @escaping (String) -> Void,
-        onDelete: (() -> Void)? = nil,
+        onAdd: @escaping (String) -> Void,
         onDismiss: (() -> Void)? = nil
+    ) {
+        present(
+            forElementFrame: elementFrame,
+            preferredEdge: preferredEdge,
+            summary: summary,
+            focusesOnOpen: true,
+            onDismiss: onDismiss
+        ) { [weak self] in
+            .new(onAdd: { text in
+                onAdd(text)
+                self?.dismiss()
+            })
+        }
+    }
+
+    /// Show a saved note as a conversation the user can reply to, edit, or delete
+    /// - Parameters:
+    ///   - onEdit: Saves new text for the user's note and returns the updated note
+    ///   - onReply: Adds the user's reply and returns the updated note
+    ///   - onDelete: Deletes the note (the window then closes)
+    func showNote(
+        _ note: Annotation,
+        forElementFrame elementFrame: NSRect,
+        preferredEdge: NSRectEdge,
+        summary: NoteElementSummary,
+        onEdit: @escaping (String) -> Annotation?,
+        onReply: @escaping (String) -> Annotation?,
+        onDelete: @escaping () -> Void,
+        onDismiss: (() -> Void)? = nil
+    ) {
+        present(
+            forElementFrame: elementFrame,
+            preferredEdge: preferredEdge,
+            summary: summary,
+            focusesOnOpen: NoteAttention(note: note).focusesReply,
+            onDismiss: onDismiss
+        ) { [weak self] in
+            .existing(
+                note: note,
+                onEdit: onEdit,
+                onReply: onReply,
+                onDelete: {
+                    onDelete()
+                    self?.dismiss()
+                }
+            )
+        }
+    }
+
+    private func present(
+        forElementFrame elementFrame: NSRect,
+        preferredEdge: NSRectEdge,
+        summary: NoteElementSummary,
+        focusesOnOpen: Bool,
+        onDismiss: (() -> Void)?,
+        mode makeMode: () -> AnnotationPopover.Mode
     ) {
         // Dismiss any existing panel immediately (no animation when replacing)
         dismiss(animated: false)
 
         self.onDismissCallback = onDismiss
+        self.focusesOnOpen = focusesOnOpen
 
         // Note: Glassmorphism dim overlay removed - NSVisualEffectView with .behindWindow
         // covering all screens causes WindowServer hangs. The modal behavior (wiggle on
         // click-outside, Escape to dismiss) works without the visual dim effect.
 
+        let state = NoteWindowState()
+        lastContentSize = nil
+        state.onSizeChange = { [weak self] size in
+            self?.lastContentSize = size
+            // Resize after the current layout pass. Resizing the window in the middle of
+            // SwiftUI's layout makes AppKit apply the size change twice, which leaves the
+            // content taller than the window and the note's top cropped.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let latest = self.lastContentSize else { return }
+                self.resizePanel(toFit: latest)
+            }
+        }
+        self.windowState = state
+
         // Create the SwiftUI content
         let content = AnnotationPopover(
             summary: summary,
-            existingNote: existingNote,
-            onSave: { [weak self] text in
-                onSave(text)
-                self?.dismiss()
-            },
-            onDelete: onDelete.map { onDelete in
-                { [weak self] in
-                    onDelete()
-                    self?.dismiss()
-                }
-            },
-            onCancel: { [weak self] in
+            mode: makeMode(),
+            windowState: state,
+            onClose: { [weak self] in
                 self?.dismiss()
             }
         )
 
-        // Create hosting controller to get content size
+        // Create the hosting controller. It doesn't size the window itself (sizingOptions = []):
+        // the window is sized here from the content's measured size and kept in step by
+        // resizePanel, and the hosting view simply fills the window.
         let hostingController = NSHostingController(rootView: content)
-        let contentSize = hostingController.view.fittingSize
+        hostingController.sizingOptions = []
+        let measured = hostingController.sizeThatFits(in: NSSize(width: 340, height: 10_000))
+        let contentSize = NSSize(width: ceil(measured.width), height: ceil(measured.height))
 
         // Calculate panel position based on preferred edge and element frame
         let panelOrigin = calculatePanelOrigin(
@@ -330,8 +681,11 @@ final class AnnotationPopoverController {
             hostingView.bottomAnchor.constraint(equalTo: firstMouseContainer.bottomAnchor)
         ])
 
+        // The container stays the window's content view (so the window keeps it at the window's
+        // size) and the hosting view is pinned inside it. Setting contentViewController here
+        // would swap the container out and leave the note shifted and cropped as it resizes.
         panel.contentView = firstMouseContainer
-        panel.contentViewController = hostingController  // Retain the hosting controller
+        self.hostingController = hostingController  // Retain the hosting controller
 
         // IMPORTANT: Setting contentView can change the frame, so explicitly set it again
         // to ensure the panel is positioned at our calculated origin
@@ -351,19 +705,19 @@ final class AnnotationPopoverController {
             contentView.layer?.borderWidth = 0.5
         }
 
-        // Set up initial state for animation (scaled down and transparent)
+        // Start transparent and fade in. (No scale animation: it required moving the content
+        // layer's anchor point, which left the content shifted and cropped once the window
+        // resized to fit a reply.)
         panel.alphaValue = 0
-        if let layer = panel.contentView?.layer {
-            layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            // Adjust position to account for anchor point change
-            layer.position = CGPoint(
-                x: layer.frame.midX,
-                y: layer.frame.midY
-            )
-            layer.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
-        }
 
         self.panel = panel
+
+        // The content may have reported its final size while the panel was being built
+        // (before it existed); apply it now, and again after the first layout pass.
+        if let size = lastContentSize { resizePanel(toFit: size) }
+        DispatchQueue.main.async { [weak self] in
+            if let size = self?.lastContentSize { self?.resizePanel(toFit: size) }
+        }
 
         // Activate app and show the panel
         // Note: activateIgnoringOtherApps is a no-op on macOS 14+, so we use the
@@ -377,24 +731,11 @@ final class AnnotationPopoverController {
         // multiple run loop cycles — especially on the first app switch.
         awaitActivationAndFocus()
 
-        // Animate in with scale + fade
+        // Fade in
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = 1.0
-        }
-
-        // Animate the scale transform separately using Core Animation
-        if let layer = panel.contentView?.layer {
-            let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
-            scaleAnimation.fromValue = 0.95
-            scaleAnimation.toValue = 1.0
-            scaleAnimation.duration = 0.15
-            scaleAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            scaleAnimation.fillMode = .forwards
-            scaleAnimation.isRemovedOnCompletion = false
-            layer.add(scaleAnimation, forKey: "scaleIn")
-            layer.transform = CATransform3DIdentity
         }
 
         // Install event monitors
@@ -449,7 +790,10 @@ final class AnnotationPopoverController {
         // NSTextView). makeFirstResponder on the hosting view container is not enough —
         // SwiftUI wraps the text field in multiple layers and the hosting view itself
         // is not the responder that accepts text input.
-        if let contentView = panel.contentView,
+        // A saved note that isn't waiting on an answer opens for reading: no cursor.
+        if !focusesOnOpen {
+            panel.makeFirstResponder(nil)
+        } else if let contentView = panel.contentView,
            let textField = Self.findEditableTextField(in: contentView) {
             panel.makeFirstResponder(textField)
         } else if let hostingView = panel.contentView?.subviews.first {
@@ -555,6 +899,33 @@ final class AnnotationPopoverController {
         return origin
     }
 
+    /// Resize the panel when its content grows or shrinks (a reply is added, the reply box
+    /// gets taller, details open), keeping the top edge in place and the panel on screen.
+    private func resizePanel(toFit size: CGSize) {
+        guard let panel, size.width > 0, size.height > 0 else { return }
+        let current = panel.frame
+        let newSize = NSSize(width: ceil(size.width), height: ceil(size.height))
+        guard abs(current.width - newSize.width) > 0.5 || abs(current.height - newSize.height) > 0.5 else { return }
+
+        var frame = NSRect(
+            x: current.minX,
+            y: current.maxY - newSize.height,
+            width: newSize.width,
+            height: newSize.height
+        )
+        if let screen = panel.screen ?? NSScreen.screen(containing: current) ?? NSScreen.primaryScreen {
+            let visible = screen.visibleFrame
+            if frame.minY < visible.minY { frame.origin.y = visible.minY }
+            if frame.maxY > visible.maxY { frame.origin.y = visible.maxY - frame.height }
+            if frame.maxX > visible.maxX { frame.origin.x = visible.maxX - frame.width }
+            if frame.minX < visible.minX { frame.origin.x = visible.minX }
+        }
+        panel.setFrame(frame, display: true)
+        // The panel is transparent around the glass, so its shadow is traced from what's drawn.
+        // Recompute it after resizing, or the old outline lingers behind the window.
+        panel.invalidateShadow()
+    }
+
     /// Install event monitor to show wiggle animation when clicking outside the panel (modal behavior)
     private func installClickOutsideMonitor() {
         // Use a GLOBAL monitor to detect clicks anywhere, including clicks that go to other apps.
@@ -569,8 +940,13 @@ final class AnnotationPopoverController {
             // print("[Loupe] CLICK (global): location=\(clickLocation), panelFrame=\(panel.frame), isInsidePanel=\(isInsidePanel)")
 
             if !isInsidePanel {
-                // Click outside panel - wiggle to indicate modal behavior
-                // print("[Loupe] CLICK (global): Outside panel - wiggling")
+                // Reading a note (nothing typed yet): a click elsewhere just closes it,
+                // like a standard macOS popover.
+                guard self.windowState?.hasUnsavedInput == true else {
+                    self.dismiss()
+                    return
+                }
+                // Unsaved typing: wiggle instead of closing so nothing is lost
                 self.wiggle()
                 // Re-activate Loupe and bring popover to front
                 NSApp.activate()
@@ -637,6 +1013,8 @@ final class AnnotationPopoverController {
     func dismiss(animated: Bool = true) {
         removeClickOutsideMonitor()
         removeKeyboardMonitor()
+        windowState?.onSizeChange = nil
+        windowState = nil
 
         guard let panel = panel else {
             onDismissCallback?()
@@ -648,7 +1026,7 @@ final class AnnotationPopoverController {
         self.panel = nil
 
         if animated {
-            // Animate out with scale + fade
+            // Fade out
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.12
                 context.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -659,18 +1037,6 @@ final class AnnotationPopoverController {
                     self?.onDismissCallback?()
                     self?.onDismissCallback = nil
                 }
-            }
-
-            // Animate the scale transform
-            if let layer = panel.contentView?.layer {
-                let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
-                scaleAnimation.fromValue = 1.0
-                scaleAnimation.toValue = 0.95
-                scaleAnimation.duration = 0.12
-                scaleAnimation.timingFunction = CAMediaTimingFunction(name: .easeIn)
-                scaleAnimation.fillMode = .forwards
-                scaleAnimation.isRemovedOnCompletion = false
-                layer.add(scaleAnimation, forKey: "scaleOut")
             }
         } else {
             // Immediate dismissal (no animation)

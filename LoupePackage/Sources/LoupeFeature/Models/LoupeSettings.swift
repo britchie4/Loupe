@@ -45,7 +45,7 @@ public enum NamingStyle: String, CaseIterable, Identifiable {
     public var description: String {
         switch self {
         case .humanized:
-            return "button \"Save\", textField (email)"
+            return "Button \u{201C}Save\u{201D}, Menu \u{201C}Regular\u{201D}"
         case .technical:
             return "AXButton[title=\"Save\"], AXTextField[identifier=\"email\"]"
         }

@@ -121,7 +121,7 @@ enum AgentLinkTools {
         AgentLinkTool(
             name: "list_notes",
             title: "List notes",
-            description: "List the user's notes for the selected app (or another app), each tied to a UI element: what the user wants changed, where the element is, and search patterns for finding it in code. Shows open notes unless you ask for another status.",
+            description: "List the user's notes for the selected app (or another app), each tied to a UI element: what the user wants changed, where the element is, and search patterns for finding it in code, plus the conversation so far. Replies from the user (from \"user\") answer your questions or add detail; a user reply sets the note back to pending. Shows open notes unless you ask for another status.",
             inputSchema: [
                 "type": "object",
                 "properties": [
@@ -209,7 +209,7 @@ enum AgentLinkTools {
         return AgentLinkTool(
             name: "reply_to_note",
             title: "Reply to a note",
-            description: "Add a message to a note without changing its status, for example to ask the user a question. The user reads it by clicking the note's badge in Loupe.",
+            description: "Add a message to a note without changing its status, for example to ask the user a question. The user reads it by clicking the note's badge in Loupe and can answer there; the answer appears in the note's replies and the note goes back to pending.",
             inputSchema: ["type": "object", "properties": .object(properties), "required": ["text"]],
             readOnly: false
         ) { args in

@@ -19,12 +19,14 @@ public struct ElementLabelView: View {
     let role: String
     let title: String?
     let identifier: String?
+    let value: String?
     let namingStyle: NamingStyle
 
-    public init(role: String, title: String?, identifier: String?, namingStyle: NamingStyle = .humanized) {
+    public init(role: String, title: String?, identifier: String?, value: String? = nil, namingStyle: NamingStyle = .humanized) {
         self.role = role
         self.title = title
         self.identifier = identifier
+        self.value = value
         self.namingStyle = namingStyle
     }
 
@@ -42,15 +44,15 @@ public struct ElementLabelView: View {
         .loupeLabelGlassBackground(cornerRadius: 6)
     }
 
-    /// Humanized label: `button "Save"` or `textField (email)`
+    /// Humanized label, the same plain names as the note window: `Menu "Regular"`
     private var humanizedLabel: some View {
         HStack(spacing: 4) {
-            Text(simplifiedRole)
+            Text(ElementKind.name(forRole: role))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
 
-            if let displayText = title ?? identifier {
-                Text("\"\(displayText)\"")
+            if let displayText = ElementKind.visibleText(title: title, value: value, identifier: identifier) {
+                Text("\u{201C}\(displayText)\u{201D}")
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(.primary)
                     .lineLimit(1)
@@ -64,14 +66,6 @@ public struct ElementLabelView: View {
             .font(.system(size: 11, weight: .medium, design: .monospaced))
             .foregroundColor(.primary)
             .lineLimit(1)
-    }
-
-    /// Remove "AX" prefix from role for humanized display
-    private var simplifiedRole: String {
-        if role.hasPrefix("AX") {
-            return String(role.dropFirst(2)).lowercased()
-        }
-        return role.lowercased()
     }
 
     /// Build technical string like `AXButton[title="Save"]`
@@ -146,6 +140,7 @@ public final class ElementLabelWindowController {
             role: element.role,
             title: element.title,
             identifier: element.identifier,
+            value: element.value,
             namingStyle: namingStyle
         )
 

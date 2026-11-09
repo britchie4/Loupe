@@ -35,7 +35,7 @@ public struct SelectionRegion: Identifiable {
             return "1 element: \(elements[0].displayLabel(style: .humanized))"
         } else {
             let roles = Dictionary(grouping: elements, by: \.role)
-                .map { "\($0.value.count) \($0.key.hasPrefix("AX") ? String($0.key.dropFirst(2)).lowercased() : $0.key.lowercased())\($0.value.count > 1 ? "s" : "")" }
+                .map { "\($0.value.count) \(ElementKind.name(forRole: $0.key).lowercased())\($0.value.count > 1 ? "s" : "")" }
                 .joined(separator: ", ")
             return "\(elements.count) elements: \(roles)"
         }

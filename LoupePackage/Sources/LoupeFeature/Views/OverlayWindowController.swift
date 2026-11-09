@@ -460,6 +460,7 @@ public final class OverlayWindowController: NSWindowController {
                 text: annotation.text,
                 elementName: annotation.displayLabel(style: settings.namingStyle),
                 status: annotation.status,
+                statusLabel: NoteAttention(note: annotation).label,
                 elementFrameAX: elementFrame
             )
         }
@@ -647,14 +648,22 @@ public final class OverlayWindowController: NSWindowController {
         overlayState.hoveredBadgeIndex = nil
         isPopoverActive = true
 
-        popoverController.show(
+        popoverController.showNote(
+            note,
             forElementFrame: elementScreenFrame,
             preferredEdge: preferredPopoverEdge(for: elementScreenFrame),
-            summary: NoteElementSummary(annotation: note, namingStyle: settings.namingStyle),
-            existingNote: note,
-            onSave: { [weak self] text in
-                self?.annotationStore.updateAnnotation(id: id, text: text)
-                self?.updateAnnotationBadges()
+            summary: NoteElementSummary(annotation: note),
+            onEdit: { [weak self] text in
+                guard let self else { return nil }
+                self.annotationStore.updateAnnotation(id: id, text: text)
+                self.updateAnnotationBadges()
+                return self.annotationStore.note(id: id)
+            },
+            onReply: { [weak self] text in
+                guard let self else { return nil }
+                let updated = self.annotationStore.addUserReply(id: id, text: text)
+                self.updateAnnotationBadges()
+                return updated
             },
             onDelete: { [weak self] in
                 self?.deleteAnnotation(id: id)
@@ -705,11 +714,11 @@ public final class OverlayWindowController: NSWindowController {
         // Enter modal state before showing popover
         isPopoverActive = true
 
-        popoverController.show(
+        popoverController.showNewNote(
             forElementFrame: elementScreenFrame,
             preferredEdge: preferredEdge,
-            summary: NoteElementSummary(element: element, namingStyle: settings.namingStyle),
-            onSave: { [weak self] text in
+            summary: NoteElementSummary(element: element, appName: targetApp.name),
+            onAdd: { [weak self] text in
                 guard let self = self else { return }
                 _ = self.annotationStore.addAnnotation(
                     text: text,
@@ -963,7 +972,7 @@ private struct BadgeTooltipView: View {
             }
 
             // Status and open hint
-            Text("\(badge.status.displayName). Click to open.")
+            Text("\(badge.statusLabel). Click to open.")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
@@ -1084,6 +1093,8 @@ struct AnnotationBadge {
     let text: String
     let elementName: String
     let status: NoteStatus
+    /// What the note needs, worded like the note window's label ("Question for you", "Done")
+    let statusLabel: String
     /// The element's frame in AX coordinates, adjusted for window movement
     let elementFrameAX: CGRect
 

@@ -154,14 +154,7 @@ public struct Annotation: Identifiable, Equatable, Codable {
     public func displayLabel(style: NamingStyle) -> String {
         switch style {
         case .humanized:
-            let cleanRole = elementRole.hasPrefix("AX") ? String(elementRole.dropFirst(2)).lowercased() : elementRole.lowercased()
-            if let title = elementTitle, !title.isEmpty {
-                return "\(cleanRole) \"\(title)\""
-            } else if let identifier = elementIdentifier, !identifier.isEmpty {
-                return "\(cleanRole) (\(identifier))"
-            } else {
-                return cleanRole
-            }
+            return ElementKind.label(role: elementRole, title: elementTitle, value: elementValue, identifier: elementIdentifier)
         case .technical:
             var attrs: [String] = []
             if let identifier = elementIdentifier, !identifier.isEmpty {
@@ -324,6 +317,18 @@ public final class AnnotationStore: ObservableObject {
             if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 note.replies.append(NoteReply(author: author, text: message))
             }
+        }
+    }
+
+    /// Add the user's own reply from the note window. Replying puts the note back to open
+    /// (pending) so an agent's next look at the open notes picks it up again.
+    @discardableResult
+    public func addUserReply(id: UUID, text: String) -> Annotation? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return note(id: id) }
+        return modify(id: id) { note in
+            note.replies.append(NoteReply(author: .user, text: trimmed))
+            note.status = .pending
         }
     }
 
