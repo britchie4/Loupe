@@ -208,6 +208,10 @@ public final class AnnotationStore: ObservableObject {
     /// The app whose notes are in `annotations`
     public private(set) var currentAppKey: String?
 
+    /// How many notes, across every app, end with a question from an agent
+    /// that the person hasn't answered yet. Drives the menu bar's coral dot.
+    @Published public private(set) var questionsForYou = 0
+
     /// Every app's notes, keyed by `appKey`
     private var notesByApp: [String: [Annotation]] = [:]
 
@@ -233,6 +237,7 @@ public final class AnnotationStore: ObservableObject {
     public init(fileURL: URL? = AnnotationStore.defaultFileURL) {
         self.fileURL = fileURL
         load()
+        recountQuestions()
     }
 
     // MARK: - App Selection
@@ -373,7 +378,13 @@ public final class AnnotationStore: ObservableObject {
     private func didChange() {
         notesByApp = notesByApp.filter { !$0.value.isEmpty }
         refreshCurrent()
+        recountQuestions()
         save()
+    }
+
+    private func recountQuestions() {
+        let count = notesByApp.values.joined().filter { NoteAttention(note: $0) == .questionForYou }.count
+        if count != questionsForYou { questionsForYou = count }
     }
 
     private func refreshCurrent() {

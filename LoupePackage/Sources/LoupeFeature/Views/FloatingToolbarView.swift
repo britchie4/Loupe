@@ -184,12 +184,8 @@ public struct FloatingToolbarView: View {
     @available(macOS 26.0, *)
     private var collapsedMorphingContent: some View {
         ZStack(alignment: .topTrailing) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 28, height: 28)
-                .saturation(0)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            LoupeMark()
+                .frame(width: 34, height: 30)
                 .frame(width: 52, height: 44)
                 .glassEffect(.regular.interactive(), in: Circle())
                 .glassEffectID("toolbar", in: glassNamespace)
@@ -328,12 +324,8 @@ public struct FloatingToolbarView: View {
 
     /// Content shown when collapsed - just the app icon and badge (legacy)
     private var legacyCollapsedContent: some View {
-        Image(nsImage: NSApp.applicationIconImage)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 28, height: 28)
-            .saturation(0)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        LoupeMark()
+            .frame(width: 34, height: 30)
             .frame(width: 52, height: 44)
             .padding(.top, 6)
             .padding(.trailing, 6)

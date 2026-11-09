@@ -127,3 +127,36 @@ struct NoteWindowTests {
         #expect(unchanged.replies.isEmpty)
     }
 }
+
+/// The count behind the menu bar's coral dot
+@MainActor
+struct QuestionsForYouTests {
+    private func element() -> AXElementInfo {
+        AXElementInfo(role: "AXButton", identifier: nil, title: "Save", value: nil,
+                      frame: .zero, hierarchyPath: [], element: AXUIElementCreateSystemWide(),
+                      siblings: [], windowFrame: nil)
+    }
+
+    @Test func countsUnansweredAgentQuestionsAcrossApps() throws {
+        let store = AnnotationStore(fileURL: nil)
+        #expect(store.questionsForYou == 0)
+
+        let a = store.addAnnotation(text: "rename", for: element(), appName: "TextEdit", bundleIdentifier: "com.apple.TextEdit")
+        let b = store.addAnnotation(text: "bigger", for: element(), appName: "Notes", bundleIdentifier: "com.apple.Notes")
+        store.addReply(id: a.id, text: "Rename to what?", author: .agent)
+        store.addReply(id: b.id, text: "Bold or larger?", author: .agent)
+        #expect(store.questionsForYou == 2)
+
+        store.addUserReply(id: a.id, text: "Draft")
+        #expect(store.questionsForYou == 1)
+
+        store.setStatus(id: b.id, to: .done, message: "Made it bold.")
+        #expect(store.questionsForYou == 0)
+    }
+
+    @Test func menuBarGlyphIsATemplateImage() {
+        let image = MenuBarIcon.image(leavingRoomForDot: true)
+        #expect(image.isTemplate)
+        #expect(image.size == NSSize(width: 18, height: 18))
+    }
+}
