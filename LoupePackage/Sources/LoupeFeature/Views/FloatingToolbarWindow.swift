@@ -95,11 +95,12 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     /// Set the annotation store to observe for badge counts
     public func setAnnotationStore(_ store: AnnotationStore) {
         self.annotationStore = store
-        self.annotationCount = store.annotations.count
+        self.annotationCount = store.annotations.filter { $0.status.isOpen }.count
 
         // Observe annotation changes via Combine
         store.$annotations
-            .map(\.count)
+            // Count only notes that still need work
+            .map { $0.filter { $0.status.isOpen }.count }
             .receive(on: RunLoop.main)
             .assign(to: &$annotationCount)
     }

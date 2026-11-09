@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import CoreVideo
 import CoreGraphics
+import Combine
 
 // MARK: - Custom Window for Click Support
 
@@ -48,6 +49,8 @@ public final class OverlayWindowController: NSWindowController {
 
     /// Local event monitor for capturing mouse clicks at the application level
     private var clickMonitor: Any?
+    /// Redraws badges when notes change, including changes made by an agent
+    private var notesSubscription: AnyCancellable?
 
     /// Whether inspection mode is active (controlled externally via toggle)
     public var isInspectionActive = false {
@@ -139,6 +142,13 @@ public final class OverlayWindowController: NSWindowController {
         updateWindowFrame()
         startTracking()
         setupWorkspaceObservers()
+
+        notesSubscription = annotationStore.$annotations
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateAnnotationBadges() }
+            }
     }
 
     required init?(coder: NSCoder) {

@@ -522,6 +522,53 @@ public final class AccessibilityInspector {
         return elements
     }
 
+    // MARK: - Search (read-only, used by Agent Link)
+
+    /// Whether an app is selected for inspection
+    public var hasTargetApp: Bool { targetAppElement != nil }
+
+    /// Search the selected app's windows for elements whose name, identifier, description,
+    /// help or value contains the query (case-insensitive), optionally limited to one role.
+    /// Reads only; never presses or changes anything.
+    /// - Parameters:
+    ///   - query: Text to look for; empty matches every element (use with a role)
+    ///   - role: An exact AX role such as "AXButton", or nil for any
+    ///   - limit: Most matches to return
+    ///   - maxVisited: Most elements to examine, so huge apps can't stall Loupe
+    public func findElements(matching query: String, role: String?, limit: Int, maxVisited: Int = 4000) -> [AXElementInfo] {
+        guard let appElement = targetAppElement else { return [] }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        var queue: [(element: AXUIElement, depth: Int)] = [(appElement, 0)]
+        var visited = 0
+        var matches: [AXElementInfo] = []
+
+        while !queue.isEmpty, matches.count < limit, visited < maxVisited {
+            let (element, depth) = queue.removeFirst()
+            visited += 1
+
+            if depth > 0, let elementRole = getStringAttribute(element, kAXRoleAttribute as CFString),
+               role == nil || elementRole == role {
+                let haystack = [
+                    kAXTitleAttribute, kAXIdentifierAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXValueAttribute,
+                ].compactMap { getStringAttribute(element, $0 as CFString)?.lowercased() }
+                if needle.isEmpty || haystack.contains(where: { $0.contains(needle) }),
+                   let info = extractElementInfo(from: element) {
+                    matches.append(info)
+                }
+            }
+
+            guard depth < 40 else { continue }
+            var childrenValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
+               let children = childrenValue as? [AXUIElement] {
+                queue.append(contentsOf: children.map { ($0, depth + 1) })
+            }
+        }
+
+        return matches
+    }
+
     // MARK: - Window Tracking
 
     /// Get the frame of the target app's focused window
