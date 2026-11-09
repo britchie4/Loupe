@@ -1,54 +1,21 @@
 import AppKit
-import AVKit
 import SwiftUI
-
-// MARK: - AVPlayerView wrapper
-
-/// Wraps AppKit's `AVPlayerView` directly, bypassing the `_AVKit_SwiftUI` bridge
-/// which crashes on macOS 26 due to a Swift runtime metadata resolution failure.
-struct NativeVideoPlayer: NSViewRepresentable {
-    let player: AVPlayer
-
-    func makeNSView(context: Context) -> AVPlayerView {
-        let view = AVPlayerView()
-        view.player = player
-        view.controlsStyle = .inline
-        view.showsFullScreenToggleButton = false
-        return view
-    }
-
-    func updateNSView(_ nsView: AVPlayerView, context: Context) {
-        nsView.player = player
-    }
-}
 
 // MARK: - State
 
 enum OnboardingPhase {
     case requestingPermission
     case permissionGranted
-    case watchingDemo
+    /// The hands-on practice: a pretend app inside this window (see `PracticeView`)
+    case practicing
 }
 
 @Observable @MainActor
 final class OnboardingState {
     var phase: OnboardingPhase = .requestingPermission
-    var videoPlayer: AVPlayer?
-
-    func prepareVideoPlayer() {
-        guard let url = URL(string: "https://britchie4.github.io/Loupe/demo.mp4") else { return }
-        videoPlayer = AVPlayer(url: url)
-    }
-
-    func playVideo() {
-        videoPlayer?.seek(to: .zero)
-        videoPlayer?.play()
-    }
-
-    func stopVideo() {
-        videoPlayer?.pause()
-        videoPlayer = nil
-    }
+    /// False when the practice was reopened from the menu bar after setup
+    var isFirstRun = true
+    let practice = PracticeSession()
 }
 
 // MARK: - View
@@ -57,9 +24,9 @@ struct OnboardingView: View {
     let state: OnboardingState
     let onGrantAccess: () -> Void
     let onOpenSettings: () -> Void
-    let onWatchDemo: () -> Void
-    let onSkipDemo: () -> Void
-    let onDemoFinished: () -> Void
+    let onStartPractice: () -> Void
+    let onSkip: () -> Void
+    let onPracticeFinished: () -> Void
 
     var body: some View {
         Group {
@@ -68,8 +35,13 @@ struct OnboardingView: View {
                 requestingPermissionContent
             case .permissionGranted:
                 permissionGrantedContent
-            case .watchingDemo:
-                watchingDemoContent
+            case .practicing:
+                PracticeView(
+                    session: state.practice,
+                    finishLabel: state.isFirstRun ? "Get Started" : "Done",
+                    onSkip: onSkip,
+                    onFinish: onPracticeFinished
+                )
             }
         }
         .frame(width: 480, height: 620)
@@ -156,22 +128,30 @@ struct OnboardingView: View {
                 .fontWeight(.semibold)
                 .transition(.opacity)
 
+            Text("Take a minute to try Loupe on a practice app. Nothing you do there is saved.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 60)
+                .transition(.opacity)
+
             Spacer()
 
             // Actions
             VStack(spacing: 10) {
                 Button {
-                    onWatchDemo()
+                    onStartPractice()
                 } label: {
-                    Label("Watch Demo", systemImage: "play.circle.fill")
+                    Text("Try It")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.loupeAccentStrong)
                 .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
 
                 Button {
-                    onSkipDemo()
+                    onSkip()
                 } label: {
                     Text("Skip, I want to start using Loupe")
                         .font(.callout)
@@ -183,55 +163,6 @@ struct OnboardingView: View {
             .padding(.bottom, 28)
         }
         .animation(.easeOut(duration: 0.4), value: state.phase == .permissionGranted)
-    }
-
-    // MARK: - Phase 3: Watching Demo
-
-    private var watchingDemoContent: some View {
-        VStack(spacing: 16) {
-            Spacer().frame(height: 8)
-
-            Text("How Loupe Works")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            if let player = state.videoPlayer {
-                NativeVideoPlayer(player: player)
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .padding(.horizontal, 24)
-            }
-
-            // Step-by-step explainer
-            VStack(alignment: .leading, spacing: 8) {
-                instructionRow(number: "1", text: "**Hover:** point at any element in any Mac app")
-                instructionRow(number: "2", text: "**Annotate:** click to describe the change you want")
-                instructionRow(number: "3", text: "**Copy:** one click copies structured context")
-                instructionRow(number: "4", text: "**Paste:** feed it to Claude Code, Cursor, Codex, or any of your favorite coding agents")
-                instructionRow(number: "5", text: "**Or skip the pasting:** turn on Agent Link in Settings, and your agent reads your notes and replies right in Loupe")
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.08))
-            )
-            .padding(.horizontal, 40)
-
-            Spacer()
-
-            Button {
-                onDemoFinished()
-            } label: {
-                Text("Get Started")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Color.loupeAccentStrong)
-            .controlSize(.large)
-            .padding(.horizontal, 60)
-            .padding(.bottom, 28)
-        }
     }
 
     // MARK: - Helpers

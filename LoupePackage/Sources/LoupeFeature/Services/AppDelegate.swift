@@ -24,6 +24,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Set up menu bar icon
         setupMenuBarIcon()
 
+        #if DEBUG
+        // Development only: `-LoupePracticePreview YES` opens the practice by itself, without
+        // asking for Accessibility access or starting the toolbar, so its look can be checked
+        // in a real window. `-LoupePreviewAppearance light` (or `dark`) picks the appearance.
+        if UserDefaults.standard.bool(forKey: "LoupePracticePreview") {
+            switch UserDefaults.standard.string(forKey: "LoupePreviewAppearance") {
+            case "light": NSApp.appearance = NSAppearance(named: .aqua)
+            case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+            default: break
+            }
+            coordinator.showPractice()
+            return
+        }
+        #endif
+
         // Check accessibility permission and show appropriate UI
         coordinator.inspector.checkAccessibilityPermission()
 
@@ -50,6 +65,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Show Loupe", action: #selector(showLoupe), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Practice Using Loupe", action: #selector(showPractice), keyEquivalent: ""))
         menu.addItem(coordinator.updater.makeMenuItem())
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit Loupe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -87,6 +103,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             button.addSubview(dot)
             statusDot = dot
         }
+    }
+
+    @objc private func showPractice() {
+        coordinator.showPractice()
     }
 
     @objc private func showLoupe() {

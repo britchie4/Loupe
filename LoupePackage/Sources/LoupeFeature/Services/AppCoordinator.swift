@@ -290,6 +290,11 @@ public final class AppCoordinator {
         }
     }
 
+    /// Open the hands-on practice by itself (from the menu bar), for people who are already set up
+    public func showPractice() {
+        onboardingWindow.showPractice()
+    }
+
     /// Start the app after permission is granted
     public func startApp() {
         // Refresh apps and restore last selection
