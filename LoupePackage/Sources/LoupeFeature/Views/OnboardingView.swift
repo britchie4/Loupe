@@ -123,7 +123,7 @@ struct OnboardingView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.loupeAccent)
+                .tint(Color.loupeAccentStrong)
                 .controlSize(.large)
 
                 Button {
@@ -167,7 +167,7 @@ struct OnboardingView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.loupeAccent)
+                .tint(Color.loupeAccentStrong)
                 .controlSize(.large)
 
                 Button {
@@ -226,7 +226,7 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Color.loupeAccent)
+            .tint(Color.loupeAccentStrong)
             .controlSize(.large)
             .padding(.horizontal, 60)
             .padding(.bottom, 28)
@@ -255,7 +255,7 @@ struct OnboardingView: View {
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
-                .background(Circle().fill(Color.loupeAccent))
+                .background(Circle().fill(Color.loupeBadge))
 
             Text(text)
                 .font(.callout)

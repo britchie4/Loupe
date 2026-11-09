@@ -435,7 +435,7 @@ private struct CopyButton: View {
 
                 Text(showSuccess ? "Copied!" : "Copy")
                     .font(.system(size: 9))
-                    .foregroundColor(showSuccess ? Color.loupeSuccess : .secondary)
+                    .foregroundColor(showSuccess ? Color.loupeAccentText : .secondary)
                     .opacity(isDisabled && !showSuccess ? 0.5 : 1.0)
             }
             .frame(width: 40, height: 36)

@@ -817,7 +817,7 @@ struct OverlayView: View {
                             style: StrokeStyle(lineWidth: 5)
                         )
 
-                        // Draw solid amber border
+                        // Draw solid coral border
                         context.stroke(
                             path,
                             with: .color(Color.loupeHighlight),

@@ -142,7 +142,7 @@ struct AnnotationPopover: View {
         .frame(width: 340)
         .fixedSize(horizontal: false, vertical: true)
         .popoverBackground()
-        .tint(Color.loupeAccent)
+        .tint(Color.loupeAccentStrong)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             windowState.onSizeChange?(size)
         }
@@ -414,7 +414,7 @@ private struct MessageBubble<Content: View>: View {
                     Button(action.label, action: action.perform)
                         .buttonStyle(.plain)
                         .font(.caption)
-                        .foregroundStyle(Color.loupeAccent)
+                        .foregroundStyle(Color.loupeAccentText)
                 }
             }
             content
@@ -453,7 +453,7 @@ private struct StatusLabel: View {
 
     private var color: Color {
         switch attention {
-        case .waiting, .agentWorking: return .loupeAccent
+        case .waiting, .agentWorking: return .loupeAccentText
         case .questionForYou, .agentReplied: return .blue
         case .done: return .green
         case .dismissed: return .secondary
