@@ -204,10 +204,10 @@ struct OnboardingView: View {
 
             // Step-by-step explainer
             VStack(alignment: .leading, spacing: 8) {
-                instructionRow(number: "1", text: "**Hover** — Point at any element in any Mac app")
-                instructionRow(number: "2", text: "**Annotate** — Click to describe the change you want")
-                instructionRow(number: "3", text: "**Copy** — One click copies structured context")
-                instructionRow(number: "4", text: "**Paste** — Feed it to Claude Code, Cursor, Codex, or any of your favorite coding agents")
+                instructionRow(number: "1", text: "**Hover:** point at any element in any Mac app")
+                instructionRow(number: "2", text: "**Annotate:** click to describe the change you want")
+                instructionRow(number: "3", text: "**Copy:** one click copies structured context")
+                instructionRow(number: "4", text: "**Paste:** feed it to Claude Code, Cursor, Codex, or any of your favorite coding agents")
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
