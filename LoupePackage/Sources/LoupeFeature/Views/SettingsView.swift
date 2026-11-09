@@ -38,13 +38,12 @@ public struct SettingsView: View {
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
 
-                Picker("Style", selection: $settings.namingStyle) {
-                    ForEach(NamingStyle.allCases) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                AccentSegmentedControl(
+                    label: "Display Style",
+                    options: NamingStyle.allCases,
+                    selection: $settings.namingStyle,
+                    title: \.displayName
+                )
 
                 Text(settings.namingStyle.description)
                     .font(.caption)
@@ -176,6 +175,51 @@ private struct AgentLinkSettingsSection: View {
         }
         .controlSize(.small)
         .help(command)
+    }
+}
+
+// MARK: - Segmented control
+
+/// A segmented choice whose selected segment stays blue. The system control
+/// only turns blue once the popover has focus, so it looked grey on first open.
+private struct AccentSegmentedControl<Value: Hashable & Identifiable>: View {
+    let label: String
+    let options: [Value]
+    @Binding var selection: Value
+    let title: (Value) -> String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options) { option in
+                let isSelected = option == selection
+                Button {
+                    selection = option
+                } label: {
+                    Text(title(option))
+                        .font(.system(size: 13))
+                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                        .padding(.horizontal, 12)
+                        .frame(minWidth: 92)
+                        .frame(height: 24)
+                        .background {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Color.accentColor)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.secondary.opacity(0.15))
+        )
+        .animation(.snappy(duration: 0.15), value: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
     }
 }
 
