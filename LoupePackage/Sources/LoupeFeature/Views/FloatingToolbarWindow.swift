@@ -45,7 +45,16 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     private var pendingContentSize: CGSize?
 
     /// Where the pointer and window were when the collapsed icon started being dragged
-    private var iconDragStart: (mouse: NSPoint, origin: NSPoint)?
+    /// A press on the collapsed icon: where it started, and whether it became a drag
+    private struct IconPress {
+        var mouse: NSPoint
+        var origin: NSPoint
+        var isDragging = false
+    }
+    private var iconPress: IconPress?
+    private var iconMouseMonitor: Any?
+    /// How far the pointer must move before a press becomes a drag, in points
+    static let dragThreshold: CGFloat = 3
 
     /// Remembers where the person left the collapsed icon
     private static let savedFrameKey = "loupe.toolbarCollapsedFrame"
@@ -76,8 +85,12 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         window.backgroundColor = .clear
         window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         window.hasShadow = false
+        // Catch clicks across the whole window, even where nothing is drawn at that moment.
+        // A see-through window otherwise lets clicks fall through its clear pixels, so a
+        // click on the icon while it was still animating closed went to the app beneath.
+        window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        // Collapsed, the icon moves with its own drag (see iconDragChanged); expanded, the bar's background drags it
+        // Collapsed, the icon moves with its own drag (see handleIconMouse); expanded, the bar's background drags it
         window.isMovableByWindowBackground = false
 
         super.init(window: window)
@@ -85,6 +98,7 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
         setupContent()
         setupObservers()
         positionWindow()
+        installIconMouseHandling()
     }
 
     required init?(coder: NSCoder) {
@@ -244,32 +258,65 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
 
     // MARK: - Moving the Icon
 
-    /// Follow the pointer while the collapsed icon is dragged, with a closed hand
-    func iconDragChanged() {
-        guard let window, !isExpanded else { return }
-        // Read the pointer from the drag event itself, in screen coordinates
-        let mouse: NSPoint
-        if let event = NSApp.currentEvent, event.window === window {
-            mouse = window.convertPoint(toScreen: event.locationInWindow)
+    /// Clicks and drags on the collapsed icon are handled here, from the window's own
+    /// mouse events, rather than with SwiftUI tap and drag gestures. Those gestures
+    /// could wedge after some open-and-close sequences and then ignore every click,
+    /// even though the clicks kept arriving. Events still pass through, so the glass
+    /// keeps its pressed look and right-click still shows the menu.
+    private func installIconMouseHandling() {
+        iconMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            MainActor.assumeIsolated { self?.handleIconMouse(event) }
+            return event
+        }
+    }
+
+    private func handleIconMouse(_ event: NSEvent) {
+        guard let window, event.window === window else { return }
+        let mouse = window.convertPoint(toScreen: event.locationInWindow)
+        switch event.type {
+        case .leftMouseDown:
+            // Control-click opens the context menu instead
+            guard !isExpanded, !event.modifierFlags.contains(.control) else {
+                iconPress = nil
+                return
+            }
+            iconPress = IconPress(mouse: mouse, origin: window.frame.origin)
+        case .leftMouseDragged:
+            guard var press = iconPress, !isExpanded else { return }
+            if !press.isDragging {
+                guard hypot(mouse.x - press.mouse.x, mouse.y - press.mouse.y) >= Self.dragThreshold else { return }
+                press.isDragging = true
+                iconPress = press
+                NSCursor.closedHand.push()
+            }
+            window.setFrameOrigin(NSPoint(
+                x: press.origin.x + mouse.x - press.mouse.x,
+                y: press.origin.y + mouse.y - press.mouse.y
+            ))
+        case .leftMouseUp:
+            guard let press = iconPress else { return }
+            iconPress = nil
+            if press.isDragging {
+                NSCursor.pop()
+                settleIconOnScreen()
+            } else if !isExpanded {
+                openFromIcon()
+            }
+        default:
+            break
+        }
+    }
+
+    private func openFromIcon() {
+        if #available(macOS 26.0, *) {
+            withAnimation(.bouncy) { isExpanded = true }
         } else {
-            mouse = NSEvent.mouseLocation
+            withAnimation(.smooth(duration: 0.4)) { isExpanded = true }
         }
-        if iconDragStart == nil {
-            iconDragStart = (mouse, window.frame.origin)
-            NSCursor.closedHand.push()
-        }
-        guard let start = iconDragStart else { return }
-        window.setFrameOrigin(NSPoint(
-            x: start.origin.x + mouse.x - start.mouse.x,
-            y: start.origin.y + mouse.y - start.mouse.y
-        ))
     }
 
     /// Settle the icon fully on the display it was dropped on
-    func iconDragEnded() {
-        guard iconDragStart != nil else { return }
-        iconDragStart = nil
-        NSCursor.pop()
+    private func settleIconOnScreen() {
         guard let window else { return }
         let visibleFrames = NSScreen.screens.map(\.visibleFrame)
         if let index = Self.indexOfScreen(containing: window.frame, screenFrames: visibleFrames) {
@@ -365,12 +412,6 @@ private struct FloatingToolbarHostView: View {
             },
             onCheckForUpdates: {
                 controller.onCheckForUpdates?()
-            },
-            onIconDragChanged: {
-                controller.iconDragChanged()
-            },
-            onIconDragEnded: {
-                controller.iconDragEnded()
             }
         )
         .fixedSize()
