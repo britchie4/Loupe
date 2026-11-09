@@ -10,7 +10,7 @@ Loupe lets a person point at any element in a running Mac app and leave a note a
 ## Before you start
 
 - Call `get_status`. It tells you whether Loupe is running, which app the person selected, and how many notes are open.
-- If the `loupe` tools are missing, the connection isn't set up. Point the person to Loupe's Settings, where Agent Link has copy buttons for each agent.
+- If the `loupe` tools are missing, the connection isn't set up. Point the person to Loupe's Settings, where Agent Link has setup steps for Claude Code, Codex, Cursor, Xcode, and other agents.
 - Notes belong to one app at a time. They default to the app selected in Loupe; pass `app` (a bundle identifier) for another.
 
 ## The loop

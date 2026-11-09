@@ -76,6 +76,7 @@ private struct AgentLinkSettingsSection: View {
     @Bindable var settings: LoupeSettings
     private let server = AgentLinkServer.shared
     @State private var copiedCommand: String?
+    @AppStorage("loupe.agentSetupTarget") private var setupTarget: AgentSetupTarget = .claudeCode
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -100,11 +101,24 @@ private struct AgentLinkSettingsSection: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 2)
 
-                HStack {
-                    copyButton("Copy for Claude Code", command: AgentLinkServer.claudeCodeSetupCommand)
-                    copyButton("Copy for Codex", command: AgentLinkServer.codexSetupCommand)
+                HStack(spacing: 8) {
+                    Picker("Agent", selection: $setupTarget) {
+                        ForEach(AgentSetupTarget.allCases) { target in
+                            Text(target.displayName).tag(target)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityLabel("Agent to set up")
+
+                    setupButton(for: setupTarget)
                 }
-                copyButton("Copy for Claude desktop app", command: AgentLinkServer.claudeDesktopConfigSnippet)
+
+                Text(setupTarget.hint)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("Teach your agent the notes workflow:")
                     .font(.caption)
@@ -137,6 +151,19 @@ private struct AgentLinkSettingsSection: View {
                 .fixedSize(horizontal: false, vertical: true)
         case .off:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func setupButton(for target: AgentSetupTarget) -> some View {
+        switch target.action {
+        case .copy(let text):
+            copyButton(target.buttonTitle, command: text)
+        case .open(let url):
+            Button(target.buttonTitle) {
+                NSWorkspace.shared.open(url)
+            }
+            .controlSize(.small)
         }
     }
 

@@ -33,7 +33,7 @@ Agent Link connects Loupe to your coding agent over MCP. Say "fix my Loupe notes
 - marks each note done with what it changed and where, so the badge turns green,
 - can look at the app you picked to check its work, but can never click or type in it.
 
-Agent Link is off until you turn it on in Loupe's **Settings**. Settings also has copy buttons with the exact setup command for your copy of Loupe.
+Agent Link is off until you turn it on in Loupe's **Settings**. Settings also has a setup button for Claude Code, Codex, Cursor, Xcode, or any other agent, with the exact steps for your copy of Loupe.
 
 **Claude Code** (also covers the Code tab in the Claude desktop app):
 
@@ -45,6 +45,19 @@ claude mcp add --scope user loupe -- /Applications/Loupe.app/Contents/MacOS/Loup
 
 ```bash
 codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp
+```
+
+**Cursor:** choose Cursor in Loupe's Settings and click **Add to Cursor**, or add Loupe to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "loupe": {
+      "command": "/Applications/Loupe.app/Contents/MacOS/Loupe",
+      "args": ["--mcp"]
+    }
+  }
+}
 ```
 
 **Claude desktop app (chat):** open **Settings > Developer > Edit Config** and add Loupe under `mcpServers`:
@@ -72,7 +85,7 @@ CLAUDE_CONFIG_DIR="$HOME/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConf
 CODEX_HOME="$HOME/Library/Developer/Xcode/CodingAssistant/codex" codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp
 ```
 
-**Any other MCP agent:** run `/Applications/Loupe.app/Contents/MacOS/Loupe --mcp` as a stdio server.
+**Any other MCP agent:** choose **Other agent** in Loupe's Settings and paste the setup prompt into your agent's chat, or register `/Applications/Loupe.app/Contents/MacOS/Loupe --mcp` as a stdio server yourself.
 
 ### Teach your agent the workflow
 
