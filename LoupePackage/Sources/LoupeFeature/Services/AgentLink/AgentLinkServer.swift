@@ -115,6 +115,25 @@ public final class AgentLinkServer {
         "codex mcp add loupe -- \(quotedExecutablePath) --mcp"
     }
 
+    /// The entry to paste into the Claude desktop app's configuration file
+    /// (Settings > Developer > Edit Config), for chats outside Claude Code
+    public static var claudeDesktopConfigSnippet: String {
+        let path = Bundle.main.executablePath ?? "/Applications/Loupe.app/Contents/MacOS/Loupe"
+        let escaped = path
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return """
+        "loupe": {
+          "command": "\(escaped)",
+          "args": ["--mcp"]
+        }
+        """
+    }
+
+    /// Installs the loupe-notes skill, which teaches an agent the notes workflow,
+    /// into Claude Code, Codex and other agents that read standard skills
+    public static let skillInstallCommand = "npx skills add britchie4/Loupe"
+
     private static var quotedExecutablePath: String {
         let path = Bundle.main.executablePath ?? "/Applications/Loupe.app/Contents/MacOS/Loupe"
         return "'\(path.replacingOccurrences(of: "'", with: "'\\''"))'"

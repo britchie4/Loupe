@@ -104,6 +104,14 @@ private struct AgentLinkSettingsSection: View {
                     copyButton("Copy for Claude Code", command: AgentLinkServer.claudeCodeSetupCommand)
                     copyButton("Copy for Codex", command: AgentLinkServer.codexSetupCommand)
                 }
+                copyButton("Copy for Claude desktop app", command: AgentLinkServer.claudeDesktopConfigSnippet)
+
+                Text("Teach your agent the notes workflow:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+
+                copyButton("Copy skill install command", command: AgentLinkServer.skillInstallCommand)
             }
         }
     }

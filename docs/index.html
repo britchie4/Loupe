@@ -493,6 +493,16 @@
             line-height: 1.6;
         }
 
+        .feature code {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-primary);
+            background: var(--border);
+            padding: 1px 5px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
         /* ── Download ── */
         .download {
             border-top: 1px solid var(--border);
@@ -840,6 +850,43 @@
                 <div class="feature">
                     <h3><span>&#9707;</span> macOS native</h3>
                     <p>Built with SwiftUI. Runs natively on Apple Silicon and Intel. No runtime dependencies.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agent Link -->
+    <section class="features" id="agent-link">
+        <div class="container">
+            <div class="reveal">
+                <p class="section-label">New in 2.0</p>
+                <h2 class="section-title">Agent Link. Skip the copy and paste.</h2>
+                <p class="section-desc">Turn on Agent Link and your coding agent reads your notes straight from Loupe, asks when something is unclear, and reports back on each one.</p>
+            </div>
+            <div class="features-grid reveal">
+                <div class="feature">
+                    <h3><span>&#9993;</span> Reads your notes</h3>
+                    <p>Say "fix my Loupe notes." Your agent gets every note with its element, location, and search patterns.</p>
+                </div>
+                <div class="feature">
+                    <h3><span>&#8644;</span> Talks it through</h3>
+                    <p>Agents can ask a question on a note. Answer in Loupe and they pick it up on their next pass.</p>
+                </div>
+                <div class="feature">
+                    <h3><span>&#10003;</span> Reports back</h3>
+                    <p>Badges turn green when a change is done. Open one to read what changed and where.</p>
+                </div>
+                <div class="feature">
+                    <h3><span>&#9673;</span> Looks, never touches</h3>
+                    <p>Agents can read the app you picked to check their work, but they can never click or type in it.</p>
+                </div>
+                <div class="feature">
+                    <h3><span>&#9881;</span> Works with your agent</h3>
+                    <p>Claude Code, Codex, the Claude desktop app, and any agent that supports MCP. Settings has a copy button for each.</p>
+                </div>
+                <div class="feature">
+                    <h3><span>&#9733;</span> Teach it the workflow</h3>
+                    <p>Install the Loupe notes skill with <code>npx skills add britchie4/Loupe</code> so your agent knows the routine.</p>
                 </div>
             </div>
         </div>
