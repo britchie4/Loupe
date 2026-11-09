@@ -14,7 +14,8 @@ enum AgentLinkTools {
             store: coordinator.annotationStore,
             inspector: coordinator.inspector,
             selectedApp: { [weak coordinator] in coordinator?.selectedApp },
-            isInspecting: { [weak coordinator] in coordinator?.isInspecting ?? false }
+            isInspecting: { [weak coordinator] in coordinator?.isInspecting ?? false },
+            practice: coordinator.practiceSession
         ))
     }
 
@@ -27,6 +28,7 @@ enum AgentLinkTools {
             replyToNote(context),
             inspectElement(context),
             findElements(context),
+            changePracticeApp(context),
         ]
     }
 
@@ -37,17 +39,21 @@ enum AgentLinkTools {
         let inspector: AccessibilityInspector
         let selectedApp: () -> TargetApp?
         let isInspecting: () -> Bool
+        /// Setup's hands-on practice. Its note is kept apart from the store (see AgentLinkTools+Practice).
+        let practice: PracticeSession?
 
         init(
             store: AnnotationStore,
             inspector: AccessibilityInspector,
             selectedApp: @escaping () -> TargetApp?,
-            isInspecting: @escaping () -> Bool
+            isInspecting: @escaping () -> Bool,
+            practice: PracticeSession? = nil
         ) {
             self.store = store
             self.inspector = inspector
             self.selectedApp = selectedApp
             self.isInspecting = isInspecting
+            self.practice = practice
         }
 
         /// The selected app's key, or the one the agent asked for
@@ -105,6 +111,9 @@ enum AgentLinkTools {
             } else {
                 status["targetApp"] = .null
             }
+            if context.openPractice != nil {
+                status["practice"] = .string(practiceStatusLine)
+            }
             return AgentLinkToolResult(.object(status))
         }
     }
@@ -121,7 +130,7 @@ enum AgentLinkTools {
         AgentLinkTool(
             name: "list_notes",
             title: "List notes",
-            description: "List the user's notes for the selected app (or another app), each tied to a UI element: what the user wants changed, where the element is, and search patterns for finding it in code, plus the conversation so far. Replies from the user (from \"user\") answer your questions or add detail; a user reply sets the note back to pending. Shows open notes unless you ask for another status.",
+            description: "List the user's notes for the selected app (or another app), each tied to a UI element: what the user wants changed, where the element is, and search patterns for finding it in code, plus the conversation so far. Replies from the user (from \"user\") answer your questions or add detail; a user reply sets the note back to pending. Shows open notes unless you ask for another status. While the user is in Loupe's built-in practice, the list starts with the practice note (app \"Practice App\"); see change_practice_app.",
             inputSchema: [
                 "type": "object",
                 "properties": [
@@ -136,10 +145,16 @@ enum AgentLinkTools {
             readOnly: true
         ) { args in
             guard let store = context.store else { return .failure("Loupe is shutting down.") }
+            let filter = args["status"]?.stringValue ?? "open"
+            // The practice note travels with the list while the practice is on, so an agent
+            // told to "check my Loupe notes" finds it without knowing about the practice
+            let practiceNotes = context.practiceNotesForList(args, filter: filter)
+            if args["app"]?.stringValue == practiceAppKey || (context.appKey(args) == nil && !practiceNotes.isEmpty) {
+                return AgentLinkToolResult(["app": .string(practiceAppKey), "notes": .array(practiceNotes)])
+            }
             guard let key = context.appKey(args) else {
                 return .failure("No app is selected in Loupe. Ask the user to pick an app in Loupe's toolbar, or pass app.")
             }
-            let filter = args["status"]?.stringValue ?? "open"
             let notes = store.notes(forAppKey: key).filter { note in
                 switch filter {
                 case "all": return true
@@ -149,7 +164,7 @@ enum AgentLinkTools {
             }
             return AgentLinkToolResult([
                 "app": .string(key),
-                "notes": .array(notes.map(noteJSON)),
+                "notes": .array(practiceNotes + notes.map(noteJSON)),
                 "notice": .string(screenTextNotice),
             ])
         }
@@ -163,6 +178,10 @@ enum AgentLinkTools {
             inputSchema: ["type": "object", "properties": .object(noteLookupProperties)],
             readOnly: true
         ) { args in
+            if let practice = context.practice(matching: args) {
+                practice.agentRead()
+                return AgentLinkToolResult(["note": practiceNoteJSON(practice)])
+            }
             guard let note = context.note(args) else { return .failure("No note matches. Use list_notes to see note ids.") }
             var json = noteJSON(note)
             if case .object(var object) = json, let attributes = note.allAttributes, !attributes.isEmpty {
@@ -195,6 +214,9 @@ enum AgentLinkTools {
                   let status = NoteStatus(rawValue: statusName), status != .pending else {
                 return .failure("status must be seen, done, or dismissed.")
             }
+            if let practice = context.practice(matching: args) {
+                return updatePracticeNote(practice, to: status, message: args["message"]?.stringValue)
+            }
             guard let note = context.note(args) else { return .failure("No note matches. Use list_notes to see note ids.") }
             guard let updated = store.setStatus(id: note.id, to: status, message: args["message"]?.stringValue) else {
                 return .failure("That note was just deleted.")
@@ -216,6 +238,10 @@ enum AgentLinkTools {
             guard let store = context.store else { return .failure("Loupe is shutting down.") }
             guard let text = args["text"]?.stringValue, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return .failure("text is required.")
+            }
+            if let practice = context.practice(matching: args) {
+                guard practice.agentReplied(text) else { return .failure(practiceClosedMessage) }
+                return AgentLinkToolResult(["note": practiceNoteJSON(practice)])
             }
             guard let note = context.note(args) else { return .failure("No note matches. Use list_notes to see note ids.") }
             guard let updated = store.addReply(id: note.id, text: text, author: .agent) else {
@@ -356,15 +382,15 @@ enum AgentLinkTools {
         ]
     }
 
+    static func isoDate(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+
     private static func frameJSON(_ frame: CGRect) -> JSONValue {
         ["x": .double(frame.origin.x), "y": .double(frame.origin.y), "width": .double(frame.width), "height": .double(frame.height)]
     }
 
     private static func optional(_ value: String?) -> JSONValue {
         value.map { .string($0) } ?? .null
-    }
-
-    private static func isoDate(_ date: Date) -> String {
-        ISO8601DateFormatter().string(from: date)
     }
 }

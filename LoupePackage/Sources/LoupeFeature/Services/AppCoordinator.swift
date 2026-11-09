@@ -283,8 +283,22 @@ public final class AppCoordinator {
 
     // MARK: - App Lifecycle (called from AppDelegate)
 
+    /// Setup's hands-on practice. Agent Link's tools reach the practice note through it.
+    public var practiceSession: PracticeSession { onboardingWindow.practice }
+
+    /// Setup can connect an agent before the app proper starts, so Agent Link is made ready here too
+    private func prepareSetup() {
+        configureAgentLink()
+        onboardingWindow.settings = floatingToolbar.settings
+        practiceSession.connectedAgent = { [agentLink] in
+            guard agentLink.status == .listening, let name = agentLink.connectedAgents.first else { return nil }
+            return PracticeCopy.displayName(forAgent: name)
+        }
+    }
+
     /// Show the onboarding window for first-time permission setup
     public func showOnboarding() {
+        prepareSetup()
         onboardingWindow.show { [weak self] in
             self?.startApp()
         }
@@ -292,6 +306,7 @@ public final class AppCoordinator {
 
     /// Open the hands-on practice by itself (from the menu bar), for people who are already set up
     public func showPractice() {
+        prepareSetup()
         onboardingWindow.showPractice()
     }
 

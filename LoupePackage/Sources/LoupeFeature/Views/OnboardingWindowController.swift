@@ -18,6 +18,15 @@ public final class OnboardingWindowController {
 
     public init() {}
 
+    /// The practice that runs in this window. Agent Link's tools reach the practice note through it.
+    public var practice: PracticeSession { state.practice }
+
+    /// Where the connect step turns Agent Link on
+    public var settings: LoupeSettings? {
+        get { state.settings }
+        set { state.settings = newValue }
+    }
+
     // MARK: - Public API
 
     /// Show the setup window for first-run permission.
@@ -48,7 +57,7 @@ public final class OnboardingWindowController {
         onComplete = nil
         state.isFirstRun = false
         state.practice.reset()
-        state.phase = .practicing
+        state.phase = phaseBeforePractice
         presentWindow()
     }
 
@@ -76,6 +85,9 @@ public final class OnboardingWindowController {
             },
             onStartPractice: { [weak self] in
                 self?.startPractice()
+            },
+            onBeginPractice: { [weak self] in
+                self?.beginPractice()
             },
             onSkip: { [weak self] in
                 self?.fadeOutAndComplete()
@@ -154,7 +166,21 @@ public final class OnboardingWindowController {
 
     // MARK: - Practice
 
+    /// Where "Try It" leads: straight to the practice when an agent is already connected
+    /// (or there is nowhere to connect one), otherwise to the optional connect step first
+    private var phaseBeforePractice: OnboardingPhase {
+        guard state.settings != nil, state.practice.connectedAgent() == nil else { return .practicing }
+        return .connectingAgent
+    }
+
     private func startPractice() {
+        state.practice.reset()
+        withAnimation(.easeOut(duration: 0.3)) {
+            state.phase = phaseBeforePractice
+        }
+    }
+
+    private func beginPractice() {
         state.practice.reset()
         withAnimation(.easeOut(duration: 0.3)) {
             state.phase = .practicing

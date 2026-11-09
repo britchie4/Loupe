@@ -6,6 +6,8 @@ import SwiftUI
 enum OnboardingPhase {
     case requestingPermission
     case permissionGranted
+    /// Optional: connect a coding agent so it takes part in the practice (see `AgentConnectView`)
+    case connectingAgent
     /// The hands-on practice: a pretend app inside this window (see `PracticeView`)
     case practicing
 }
@@ -15,6 +17,8 @@ final class OnboardingState {
     var phase: OnboardingPhase = .requestingPermission
     /// False when the practice was reopened from the menu bar after setup
     var isFirstRun = true
+    /// Where Agent Link is turned on. Nil only in previews and tests, which skip the connect step.
+    var settings: LoupeSettings?
     let practice = PracticeSession()
 }
 
@@ -24,7 +28,10 @@ struct OnboardingView: View {
     let state: OnboardingState
     let onGrantAccess: () -> Void
     let onOpenSettings: () -> Void
+    /// "Try It": go to the practice, by way of connecting an agent if none is connected
     let onStartPractice: () -> Void
+    /// Leave the connect step for the practice itself
+    let onBeginPractice: () -> Void
     let onSkip: () -> Void
     let onPracticeFinished: () -> Void
 
@@ -35,6 +42,15 @@ struct OnboardingView: View {
                 requestingPermissionContent
             case .permissionGranted:
                 permissionGrantedContent
+            case .connectingAgent:
+                if let settings = state.settings {
+                    AgentConnectView(
+                        settings: settings,
+                        skipLabel: state.isFirstRun ? "Skip, I want to start using Loupe" : "Close",
+                        onPractice: onBeginPractice,
+                        onSkip: onSkip
+                    )
+                }
             case .practicing:
                 PracticeView(
                     session: state.practice,

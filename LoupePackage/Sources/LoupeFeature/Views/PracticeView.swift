@@ -35,6 +35,9 @@ struct PracticeView: View {
         }
         .frame(width: 480, height: 620)
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .smooth(duration: 0.3), value: stage)
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : .smooth(duration: 0.3), value: session.model.agentHasRead)
+        // The practice app changing size is movement: with Reduce Motion it just changes
+        .animation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.25), value: session.model.looks)
         .onChange(of: stage) { _, newStage in announce(newStage) }
     }
 
@@ -70,18 +73,23 @@ struct PracticeView: View {
     private var instructions: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(PracticeCopy.title(for: stage))
+                Text(PracticeCopy.title(for: session.model))
                     .font(.title2.weight(.semibold))
-                Text(PracticeCopy.body(for: stage))
+                Text(PracticeCopy.body(for: session.model))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .combine)
-            .id(stage)
+            .id(PracticeCopy.title(for: session.model))
             .transition(.opacity)
 
             Spacer(minLength: 0)
+
+            if let phrase = phraseForAgent {
+                CopyPhraseButton(phrase: phrase)
+                    .transition(.opacity)
+            }
 
             if stage == .done {
                 Button(PracticeCopy.continueLabel) { session.continueToFinish() }
@@ -95,14 +103,25 @@ struct PracticeView: View {
         .frame(height: 76, alignment: .topLeading)
     }
 
+    /// What to say to the person's own agent, while the practice is waiting on it
+    private var phraseForAgent: String? {
+        let model = session.model
+        guard model.isLive, !model.agentHasRead else { return nil }
+        switch stage {
+        case .noteAdded: return PracticeCopy.agentPrompt
+        case .answered: return PracticeCopy.agentFollowUp
+        default: return nil
+        }
+    }
+
     /// Read each new instruction (and the agent's line, when there is one) to VoiceOver
     private func announce(_ stage: PracticeStage) {
         var parts: [String] = []
         if let last = session.model.messages.last, last.author == .agent {
             parts.append("Agent: \(last.text)")
         }
-        parts.append(PracticeCopy.title(for: stage) + ".")
-        parts.append(PracticeCopy.body(for: stage))
+        parts.append(PracticeCopy.title(for: session.model) + ".")
+        parts.append(PracticeCopy.body(for: session.model))
         AccessibilityNotification.Announcement(parts.joined(separator: " ")).post()
     }
 }
@@ -255,36 +274,47 @@ private struct PracticeAppView: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let heading = session.model.look(of: .heading)
+        let reminder = session.model.look(of: .reminder)
+        let save = session.model.look(of: .saveButton)
+
+        return VStack(alignment: .leading, spacing: 12) {
             target(.heading) {
-                Text(PracticeElement.heading.title)
-                    .font(.title2.weight(.bold))
+                Text(heading.text)
+                    .font(.system(size: 17 * heading.size.scale, weight: heading.bold ? .black : .bold))
+                    .foregroundStyle(heading.color.textColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
 
             HStack(spacing: 8) {
                 target(.reminder) {
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                            .stroke(Color.secondary, lineWidth: 1.2)
-                            .frame(width: 14, height: 14)
-                        Text(PracticeElement.reminder.title)
-                            .font(.body)
+                    HStack(spacing: 6 * reminder.size.scale) {
+                        PracticeCheckbox(isOn: reminder.checked, color: reminder.color, side: 14 * reminder.size.scale)
+                        Text(reminder.text)
+                            .font(.system(size: 13 * reminder.size.scale, weight: reminder.bold ? .bold : .regular))
+                            .foregroundStyle(reminder.color.textColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                     }
                 }
                 Spacer(minLength: 8)
                 target(.saveButton, padded: false) {
-                    Text(PracticeElement.saveButton.title)
-                        .font(.body.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 5)
+                    Text(save.text)
+                        .font(.system(size: 13 * save.size.scale, weight: save.bold ? .bold : .medium))
+                        .foregroundStyle(save.color == .standard ? Color.primary : save.color.onFill)
+                        .lineLimit(1)
+                        .padding(.horizontal, 14 * save.size.scale)
+                        .padding(.vertical, 5 * save.size.scale)
                         .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.primary.opacity(0.08))
+                            RoundedRectangle(cornerRadius: 6 * save.size.scale, style: .continuous)
+                                .fill(save.color == .standard ? Color.primary.opacity(0.08) : save.color.fill)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            RoundedRectangle(cornerRadius: 6 * save.size.scale, style: .continuous)
                                 .stroke(Color.primary.opacity(0.18), lineWidth: 1)
                         )
+                        .fixedSize()
                 }
             }
 
@@ -340,7 +370,7 @@ private struct PracticeAppView: View {
         }
         .anchorPreference(key: PracticeFrameKey.self, value: .bounds) { [element: $0] }
         .allowsHitTesting(session.model.stage == .pointing)
-        .accessibilityLabel(element.accessibilityLabel)
+        .accessibilityLabel(element.accessibilityLabel(showing: session.model.look(of: element).text))
         .accessibilityHint("Opens a practice note on this element")
     }
 }
@@ -359,29 +389,135 @@ private struct PracticeOutline: View {
     }
 }
 
-/// The note's badge: its number on coral while open, a check on green when done
+/// The note's badge: its number on coral while open, a check on green when done,
+/// its number on grey when the agent declined
 private struct PracticeBadgeView: View {
     let badge: PracticeBadge
 
+    private var fill: Color {
+        switch badge {
+        case .numbered: .loupeBadge
+        case .done: .green
+        case .dismissed: .gray
+        }
+    }
+
+    private var label: String {
+        switch badge {
+        case .numbered: "Note 1"
+        case .done: "Note 1, done"
+        case .dismissed: "Note 1, dismissed"
+        }
+    }
+
     var body: some View {
         ZStack {
-            Circle().fill(badge == .done ? Color.green : Color.loupeBadge)
+            Circle().fill(fill)
             Circle().stroke(Color.white, lineWidth: 2)
-            switch badge {
-            case .numbered(let number):
-                Text("\(number)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-            case .done:
+            if badge == .done {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(.white)
+            } else {
+                Text("1")
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
             }
         }
         .frame(width: 20, height: 20)
         .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
         .accessibilityElement()
-        .accessibilityLabel(badge == .done ? "Note 1, done" : "Note 1")
+        .accessibilityLabel(label)
+    }
+}
+
+/// The practice app's checkbox: an empty box, or a filled one with a tick
+private struct PracticeCheckbox: View {
+    let isOn: Bool
+    let color: PracticeColor
+    let side: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: side * 0.25, style: .continuous)
+        ZStack {
+            if isOn {
+                shape.fill(color == .standard ? Color.primary.opacity(0.85) : color.fill)
+                Image(systemName: "checkmark")
+                    .font(.system(size: side * 0.62, weight: .heavy))
+                    .foregroundStyle(color == .standard ? Color(nsColor: .textBackgroundColor) : color.onFill)
+            } else {
+                shape.stroke(color == .standard ? Color.secondary : color.textColor, lineWidth: 1.2)
+            }
+        }
+        .frame(width: side, height: side)
+    }
+}
+
+/// The colors the practice app can be given, readable in light and dark
+private extension PracticeColor {
+    private var hexes: (fill: Int, lightText: Int, darkText: Int, darkOnFill: Bool) {
+        switch self {
+        case .standard: (0x5F6672, 0x1D1D1F, 0xF5F5F7, false)
+        case .red: (0xC62828, 0xC62828, 0xFF6B6B, false)
+        case .orange: (0xB45309, 0xB45309, 0xFF9F45, false)
+        case .yellow: (0xF2C200, 0x8A6D00, 0xFFD60A, true)
+        case .green: (0x1B7A34, 0x1B7A34, 0x4CD964, false)
+        case .blue: (0x1D5FD0, 0x1D5FD0, 0x5AA9FF, false)
+        case .purple: (0x6D3FC4, 0x6D3FC4, 0xB69CFF, false)
+        case .pink: (0xC2185B, 0xC2185B, 0xFF7AB2, false)
+        case .gray: (0x5F6672, 0x5F6672, 0xA8AFBA, false)
+        }
+    }
+
+    /// Behind a button's words, or inside a ticked checkbox
+    var fill: Color { Color(practiceHex: hexes.fill) }
+
+    /// Words drawn on top of `fill`
+    var onFill: Color { hexes.darkOnFill ? Color(practiceHex: 0x1D1D1F) : .white }
+
+    /// Words drawn straight on the practice app's background
+    var textColor: Color {
+        guard self != .standard else { return .primary }
+        let (light, dark) = (hexes.lightText, hexes.darkText)
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua]) != nil
+            return NSColor(practiceHex: isDark ? dark : light)
+        })
+    }
+}
+
+private extension NSColor {
+    convenience init(practiceHex hex: Int) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+
+private extension Color {
+    init(practiceHex hex: Int) {
+        self.init(nsColor: NSColor(practiceHex: hex))
+    }
+}
+
+/// Copies what to say to the person's own agent
+private struct CopyPhraseButton: View {
+    let phrase: String
+    @State private var copied = false
+
+    var body: some View {
+        Button(copied ? PracticeCopy.copiedLabel : PracticeCopy.copyPhraseLabel) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(phrase, forType: .string)
+            copied = true
+        }
+        .controlSize(.large)
+        .help(phrase)
+        .accessibilityLabel(copied ? "Copied" : "Copy the phrase: \(phrase)")
+        .onChange(of: phrase) { copied = false }
     }
 }
 
@@ -460,6 +596,22 @@ private struct PracticeNoteWindow: View {
                 .focused($focus, equals: .newNote)
                 .accessibilityLabel("Practice note text")
             HStack {
+                // One click fills in a note that fits this element
+                Button {
+                    noteText = element.suggestedNote
+                    focus = .newNote
+                } label: {
+                    Text("\(PracticeCopy.suggestionPrefix) \(element.suggestedNote)")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Color.loupeAccentText)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.loupeAccent.opacity(0.14)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Use the suggested note: \(element.suggestedNote)")
                 Spacer()
                 Button("Cancel") { session.cancelNote() }
                     .keyboardShortcut(.cancelAction)
@@ -490,10 +642,17 @@ private struct PracticeNoteWindow: View {
                             .id(message.id)
                             .transition(reduceMotion ? .opacity : .offset(y: 8).combined(with: .opacity))
                     }
-                    if stage == .noteAdded {
-                        Text("No agent has picked this up yet.")
+                    if stage == .noteAdded, !session.model.agentHasRead {
+                        Text(PracticeCopy.noAgentYet)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if session.model.offersPretendAgent {
+                        Button(PracticeCopy.usePretendAgentLabel) { session.usePretendAgent() }
+                            .buttonStyle(.plain)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.loupeAccentText)
+                            .transition(.opacity)
                     }
                 }
                 .padding(14)
@@ -636,13 +795,7 @@ private struct PracticeStatusLabel: View {
     private static func adaptive(light: Int, dark: Int) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua]) != nil
-            let hex = isDark ? dark : light
-            return NSColor(
-                srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
-                green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255,
-                alpha: 1
-            )
+            return NSColor(practiceHex: isDark ? dark : light)
         })
     }
 }
@@ -682,11 +835,11 @@ private struct PracticeFinishView: View {
             LoupeMark()
                 .frame(width: 92)
 
-            Text(PracticeCopy.title(for: .finished))
+            Text("You're ready")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text(PracticeCopy.body(for: .finished))
+            Text("Your practice note is gone. Real notes reach your agent in one of two ways.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
