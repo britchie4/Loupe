@@ -169,25 +169,16 @@ public struct FloatingToolbarView: View {
     /// Uses a ZStack so the badge renders above the glass compositing layer.
     @available(macOS 26.0, *)
     private var collapsedMorphingContent: some View {
-        ZStack(alignment: .topTrailing) {
-            LoupeMark()
-                .frame(width: 34, height: 30)
-                .frame(width: 52, height: 44)
-                .glassEffect(.regular.interactive(), in: Circle())
-                .glassEffectID("toolbar", in: glassNamespace)
-                .padding(.top, 6)
-                .padding(.trailing, 6)
-
-            if annotationCount > 0 {
-                Text("\(annotationCount)")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.loupeBadge))
-            }
-        }
-        .contentShape(Circle())
+        // The open-note count is drawn by the window, not here, so it doesn't ride
+        // the icon's slide-in spring (see CollapsedCountBadge)
+        LoupeMark()
+            .frame(width: 34, height: 30)
+            .frame(width: 52, height: 44)
+            .glassEffect(.regular.interactive(), in: Circle())
+            .glassEffectID("toolbar", in: glassNamespace)
+            .padding(.top, 6)
+            .padding(.trailing, 6)
+            .contentShape(Circle())
         // Clicks and drags on the collapsed icon are handled by the window
         // (FloatingToolbarWindowController.handleIconMouse)
         .help("Click to open. Drag to move.")
@@ -304,16 +295,6 @@ public struct FloatingToolbarView: View {
             .frame(width: 52, height: 44)
             .padding(.top, 6)
             .padding(.trailing, 6)
-            .overlay(alignment: .topTrailing) {
-                if annotationCount > 0 {
-                    Text("\(annotationCount)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.loupeBadge))
-                }
-            }
     }
 
     /// Content shown when expanded - the full toolbar buttons (legacy)

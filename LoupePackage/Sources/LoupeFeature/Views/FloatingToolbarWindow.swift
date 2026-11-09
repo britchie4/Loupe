@@ -420,5 +420,46 @@ private struct FloatingToolbarHostView: View {
         }
         // Hug the window's right and bottom edges, the ones that stay still while it resizes
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .overlay(alignment: .topTrailing) {
+            CollapsedCountBadge(count: controller.annotationCount, isExpanded: controller.isExpanded)
+        }
+    }
+}
+
+/// The open-note count on the collapsed icon. It's pinned to the window's corner
+/// rather than to the icon, and fades in once the icon has finished sliding in, so
+/// it never rides the icon's spring or gets clipped by the window's edge.
+private struct CollapsedCountBadge: View {
+    let count: Int
+    let isExpanded: Bool
+    @State private var iconSettled = false
+
+    /// Roughly how long the icon's slide-in takes to come to rest
+    private static let settleDelay: Duration = .milliseconds(420)
+
+    var body: some View {
+        ZStack {
+            // Always-present placeholder: an empty container never appears, so its
+            // .task below would never run and the badge would never be shown
+            Color.clear.frame(width: 1, height: 1)
+            if count > 0, !isExpanded, iconSettled {
+                Text("\(count)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.loupeBadge))
+                    .transition(.opacity)
+                    .accessibilityLabel(count == 1 ? "1 open note" : "\(count) open notes")
+            }
+        }
+        .allowsHitTesting(false)
+        .task(id: isExpanded) {
+            iconSettled = false
+            guard !isExpanded else { return }
+            try? await Task.sleep(for: Self.settleDelay)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.15)) { iconSettled = true }
+        }
     }
 }
