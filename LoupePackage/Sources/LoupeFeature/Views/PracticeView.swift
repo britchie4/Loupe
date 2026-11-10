@@ -369,9 +369,17 @@ private struct PracticeAppView: View {
             if inside { session.hover(element) } else { session.unhover(element) }
         }
         .anchorPreference(key: PracticeFrameKey.self, value: .bounds) { [element: $0] }
-        .allowsHitTesting(session.model.stage == .pointing)
+        .allowsHitTesting(session.model.stage == .pointing && !isRemoved(element))
         .accessibilityLabel(element.accessibilityLabel(showing: session.model.look(of: element).text))
         .accessibilityHint("Opens a practice note on this element")
+        // A removed element keeps its place, so nothing else jumps and its badge stays put
+        .opacity(isRemoved(element) ? 0 : 1)
+        .scaleEffect(isRemoved(element) ? 0.85 : 1)
+        .accessibilityHidden(isRemoved(element))
+    }
+
+    private func isRemoved(_ element: PracticeElement) -> Bool {
+        session.model.look(of: element).removed
     }
 }
 

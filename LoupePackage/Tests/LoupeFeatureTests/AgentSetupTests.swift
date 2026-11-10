@@ -66,6 +66,13 @@ struct AgentSetupTests {
         #expect(AgentSetupTarget.shellQuoted("/tmp/it's/Loupe") == "'/tmp/it'\\''s/Loupe'")
     }
 
+    /// People paste the command into the agent itself, and for Codex that is the path
+    /// that works even when its terminal command is missing
+    @Test func hintsOfferPastingIntoTheAgent() {
+        #expect(AgentSetupTarget.claudeCode.hint.hasPrefix("Paste into Terminal or a Claude Code session."))
+        #expect(AgentSetupTarget.codex.hint.hasPrefix("Paste into Terminal or a Codex chat."))
+    }
+
     @Test func hintsUseNoEmDashes() {
         for target in AgentSetupTarget.allCases {
             #expect(!target.hint.contains("\u{2014}"))

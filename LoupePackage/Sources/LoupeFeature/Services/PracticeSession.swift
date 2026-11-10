@@ -17,6 +17,9 @@ public final class PracticeSession {
     @ObservationIgnored public var quietAgentDelay: Duration
     /// The connected agent to hand a new note to, by name. Nil means the pretend agent plays the part.
     @ObservationIgnored public var connectedAgent: () -> String? = { nil }
+    /// Whether Loupe's setup window (permission, connect, practice) is showing right now.
+    /// Agents are told, so they don't send a newcomer off to pick an app mid-setup.
+    @ObservationIgnored public var isSetupOnScreen = false
     /// How agents refer to the current practice note
     @ObservationIgnored public private(set) var noteID = UUID()
 

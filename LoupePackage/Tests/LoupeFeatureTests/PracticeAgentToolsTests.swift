@@ -170,6 +170,54 @@ struct PracticeAgentToolsTests {
         #expect(store.annotations.isEmpty)
     }
 
+    /// "Delete this button" was the first note tried with a real agent, and it stalled
+    @Test func anAgentCanRemoveAnElementAndPutItBack() throws {
+        leaveLiveNote("delete this button")
+        _ = try call("list_notes")
+
+        let removed = try call("change_practice_app", ["element": "saveButton", "removed": true])
+        #expect(!removed.isError)
+        #expect(practice.model.look(of: .saveButton).removed)
+        #expect(!practice.model.look(of: .heading).removed)
+        if case .array(let app)? = removed.result["practiceApp"] {
+            #expect(app.first { $0["element"]?.stringValue == "saveButton" }?["removed"]?.boolValue == true)
+        } else {
+            Issue.record("The reply should describe the practice app")
+        }
+
+        #expect(!(try call("change_practice_app", ["element": "saveButton", "removed": false])).isError)
+        #expect(!practice.model.look(of: .saveButton).removed)
+
+        _ = try call("change_practice_app", ["element": "saveButton", "removed": true])
+        #expect(!(try call("update_note", ["id": noteID, "status": "done", "message": "Removed the button."])).isError)
+        #expect(practice.model.stage == .done)
+        #expect(store.annotations.isEmpty)
+    }
+
+    /// The person is looking at Loupe, so an agent that can't do something has to say so there
+    @Test func agentsAreToldToAnswerInsideLoupe() throws {
+        leaveLiveNote("make it spin")
+        let note = try #require(notes(try call("list_notes").result).first)
+        let guidance = try #require(note["practice"]?.stringValue)
+        #expect(guidance.contains("watching Loupe, not this chat"))
+        #expect(guidance.contains("dismissed"))
+        #expect(!guidance.contains("\u{2014}"))
+    }
+
+    /// During setup no app is selected yet. Agents are told that is expected.
+    @Test func statusSaysWhenSetupIsOnScreen() throws {
+        #expect(try call("get_status").result["setup"] == nil)
+
+        practice.isSetupOnScreen = true
+        #expect(try call("get_status").result["setup"]?.stringValue == AgentLinkTools.setupStatusLine)
+
+        // Once there is a practice note, that is the thing to say
+        leaveLiveNote()
+        let status = try call("get_status").result
+        #expect(status["setup"] == nil)
+        #expect(status["practice"]?.stringValue == AgentLinkTools.practiceStatusLine)
+    }
+
     @Test func anAgentCanDeclineThePracticeNote() throws {
         leaveLiveNote("delete my files")
         let declined = try call("update_note", ["id": noteID, "status": "dismissed", "message": "I can only restyle the practice app."])

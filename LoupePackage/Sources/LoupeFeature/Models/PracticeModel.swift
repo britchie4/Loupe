@@ -105,6 +105,8 @@ public struct PracticeLook: Equatable, Sendable {
     public var bold = false
     /// Only the checkbox shows this
     public var checked = false
+    /// Taken out of the practice app. Its place stays, so nothing else moves.
+    public var removed = false
 }
 
 /// A change to an element's look. Anything left nil stays as it is.
@@ -114,21 +116,24 @@ public struct PracticeChange: Equatable, Sendable {
     public var color: PracticeColor?
     public var bold: Bool?
     public var checked: Bool?
+    /// True takes the element out of the practice app, false puts it back
+    public var removed: Bool?
 
-    public init(text: String? = nil, size: PracticeSize? = nil, color: PracticeColor? = nil, bold: Bool? = nil, checked: Bool? = nil) {
+    public init(text: String? = nil, size: PracticeSize? = nil, color: PracticeColor? = nil, bold: Bool? = nil, checked: Bool? = nil, removed: Bool? = nil) {
         self.text = text
         self.size = size
         self.color = color
         self.bold = bold
         self.checked = checked
+        self.removed = removed
     }
 
     public var isEmpty: Bool {
-        text == nil && size == nil && color == nil && bold == nil && checked == nil
+        text == nil && size == nil && color == nil && bold == nil && checked == nil && removed == nil
     }
 
     /// The parts that make sense on every element (size, colour, weight), without the
-    /// parts that belong to one element (its words, its tick)
+    /// parts that belong to one element (its words, its tick, whether it is there at all)
     public var styleOnly: PracticeChange {
         PracticeChange(size: size, color: color, bold: bold)
     }
@@ -352,6 +357,7 @@ public struct PracticeModel: Equatable, Sendable {
             if let color = change.color { look.color = color }
             if let bold = change.bold { look.bold = bold }
             if let checked = change.checked, element == .reminder { look.checked = checked }
+            if let removed = change.removed { look.removed = removed }
             looks[element] = look
         }
         appWasChanged = true
@@ -539,6 +545,13 @@ public enum PracticeInterpreter {
             phrases.contains { text.contains(" \($0) ") }
         }
 
+        // "Delete this" is one of the first things people try. Taking the tick off a
+        // checkbox is not removing the checkbox.
+        let aboutTheTick = element == .reminder && has("remove the tick", "remove the check", "remove the checkmark", "remove tick", "remove check")
+        if !aboutTheTick, has("delete", "remove", "hide", "get rid", "take out", "take away", "take this out", "drop", "lose", "gone") {
+            return Reading(change: PracticeChange(removed: true), understood: true)
+        }
+
         if has("much bigger", "way bigger", "a lot bigger", "much larger", "huge", "giant", "massive", "enormous") {
             change.size = .muchBigger
         } else if has("bigger", "larger", "big", "large", "increase", "grow", "taller", "wider", "enlarge") {
@@ -557,7 +570,7 @@ public enum PracticeInterpreter {
         }
 
         if element == .reminder {
-            if has("uncheck", "unchecked", "untick", "unticked", "turn off", "off by default", "disable", "disabled", "deselect") {
+            if aboutTheTick || has("uncheck", "unchecked", "untick", "unticked", "turn off", "off by default", "disable", "disabled", "deselect") {
                 change.checked = false
             } else if has("check", "checked", "tick", "ticked", "turn on", "on by default", "enable", "enabled", "select", "selected") {
                 change.checked = true
@@ -590,6 +603,7 @@ public enum PracticeInterpreter {
         let change = reading.change
         let target = everywhere ? "everything" : "it"
         var parts: [String] = []
+        if let removed = change.removed { parts.append(removed ? "removed it" : "put it back") }
         if let text = change.text { parts.append("renamed it to \u{201C}\(text)\u{201D}") }
         switch change.size {
         case .muchBigger: parts.append("made \(target) much bigger")

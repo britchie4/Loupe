@@ -395,7 +395,7 @@ struct PracticeTests {
 
         // Everything the pretend agent can say
         for element in PracticeElement.allCases {
-            for note in [element.suggestedNote, "rename it to Trip", "smaller, pink and bold", "untick it", "no idea"] {
+            for note in [element.suggestedNote, "rename it to Trip", "smaller, pink and bold", "untick it", "delete this", "no idea"] {
                 let reading = PracticeInterpreter.reading(of: note, for: element)
                 strings.append(PracticeInterpreter.doneMessage(for: reading, everywhere: false))
                 strings.append(PracticeInterpreter.doneMessage(for: reading, everywhere: true))
@@ -406,6 +406,31 @@ struct PracticeTests {
             #expect(!string.isEmpty)
             #expect(!string.contains("\u{2014}"), "Em dash in: \(string)")
         }
+    }
+
+    @Test func askingToDeleteSomethingRemovesIt() {
+        for note in ["delete this button", "Remove this", "hide it please", "get rid of this", "take this out"] {
+            let reading = PracticeInterpreter.reading(of: note, for: .saveButton)
+            #expect(reading.understood, "\(note)")
+            #expect(reading.change == PracticeChange(removed: true), "\(note)")
+        }
+        // Taking the tick off a checkbox is not removing the checkbox
+        #expect(PracticeInterpreter.reading(of: "remove the tick", for: .reminder).change == PracticeChange(checked: false))
+        // A new name that happens to contain such a word is still a rename
+        #expect(PracticeInterpreter.reading(of: "rename it to Delete Plan", for: .saveButton).change == PracticeChange(text: "Delete Plan"))
+
+        let reading = PracticeInterpreter.reading(of: "delete this button", for: .saveButton)
+        #expect(PracticeInterpreter.doneMessage(for: reading, everywhere: false) == "Done. I removed it.")
+    }
+
+    @Test func theScriptedAgentRemovesOnlyTheElementAskedAbout() {
+        // Even when the answer is "everywhere": removing is about one element, not a style
+        let model = practice(at: .done, note: "delete this button", answer: "everywhere")
+        #expect(model.look(of: .saveButton).removed)
+        #expect(!model.look(of: .heading).removed)
+        #expect(!model.look(of: .reminder).removed)
+        #expect(model.messages.last?.text == "Done. I removed it.")
+        #expect(model.appWasChanged)
     }
 
     @Test func theAgentLinkMessageIsKept() {

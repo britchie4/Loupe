@@ -74,6 +74,7 @@ public final class OnboardingWindowController {
     private func presentWindow() {
         tearDownWindow()
         isFinishing = false
+        state.practice.isSetupOnScreen = true
 
         let contentView = OnboardingView(
             state: state,
@@ -137,6 +138,7 @@ public final class OnboardingWindowController {
         closeObserver = nil
         if close { window?.close() }
         window = nil
+        state.practice.isSetupOnScreen = false
     }
 
     /// The person closed the window themselves. While permission is still missing, setup

@@ -31,9 +31,9 @@ public enum AgentSetupTarget: String, CaseIterable, Identifiable, Sendable {
     public var hint: String {
         switch self {
         case .claudeCode:
-            "Paste into Terminal. Also covers the Code tab in the Claude desktop app."
+            "Paste into Terminal or a Claude Code session. Also covers the Code tab in the Claude desktop app."
         case .codex:
-            "Paste into Terminal. Also covers the Codex app and editor plugins."
+            "Paste into Terminal or a Codex chat. Also covers the Codex app and editor plugins."
         case .cursor:
             "Opens Cursor, which asks you to confirm."
         case .xcode:

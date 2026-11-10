@@ -86,6 +86,9 @@ enum AgentLinkTools {
         ) { _ in
             guard let store = context.store else { return .failure("Loupe is shutting down.") }
             let notes = store.annotations
+            // Ask macOS now. The stored answer is from launch, and setup keeps the app
+            // open long after the person grants access, so it can be out of date.
+            context.inspector.checkAccessibilityPermission()
             var status: [String: JSONValue] = [
                 "loupeVersion": .string(MCPHandler.appVersion),
                 "accessibilityPermission": .bool(context.inspector.isAccessibilityEnabled),
@@ -113,6 +116,8 @@ enum AgentLinkTools {
             }
             if context.openPractice != nil {
                 status["practice"] = .string(practiceStatusLine)
+            } else if context.practice?.isSetupOnScreen == true {
+                status["setup"] = .string(setupStatusLine)
             }
             return AgentLinkToolResult(.object(status))
         }

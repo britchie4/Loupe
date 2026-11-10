@@ -8,7 +8,7 @@ import Foundation
 // never written to the AnnotationStore: these tools read and change a `PracticeSession`.
 //
 // The pretend app has no code behind it, so `change_practice_app` stands in for the edit
-// an agent would make in a real project. It can only restyle the three practice elements.
+// an agent would make in a real project. It can only restyle or remove the three practice elements.
 extension AgentLinkTools {
 
     /// The app key agents see on the practice note
@@ -16,9 +16,15 @@ extension AgentLinkTools {
 
     static let practiceStatusLine = "The user is in Loupe's built-in practice and has left a practice note. list_notes returns it."
 
+    static let setupStatusLine = "The user is going through Loupe's first-run setup and is about to try a practice note on a pretend app inside Loupe. No app is selected yet, and that is expected: do not ask them to pick one or to change any settings. When they ask you to check their Loupe notes, list_notes returns the practice note."
+
+    /// The person is watching Loupe, not the agent's chat. An agent that only explains
+    /// itself in its own chat leaves the practice looking stuck.
+    private static let answerInLoupe = "The user is watching Loupe, not this chat, so answer there. If the request is outside what change_practice_app can do, either make the closest change and say what you did in update_note, or decline with update_note status dismissed and one short sentence on why."
+
     static let practiceClosedMessage = "That practice note is finished or the practice was closed. Nothing more to do for it."
 
-    private static let practiceHowTo = "This note is from Loupe's built-in practice: a new user is trying Loupe on a pretend app inside Loupe. There is no code to edit. Make the requested change with change_practice_app, then call update_note with status done and one short sentence saying what you changed."
+    private static let practiceHowTo = "This note is from Loupe's built-in practice: a new user is trying Loupe on a pretend app inside Loupe. There is no code to edit. Make the requested change with change_practice_app, then call update_note with status done and one short sentence saying what you changed. \(answerInLoupe)"
 
     // MARK: Finding the practice note
 
@@ -45,7 +51,7 @@ extension AgentLinkTools {
         return AgentLinkTool(
             name: "change_practice_app",
             title: "Change Loupe's practice app",
-            description: "Only for Loupe's built-in practice, where a new user tries Loupe on a pretend app inside Loupe (notes whose app is \"Practice App\"). The pretend app has no code, so this tool stands in for editing it: call it to make the change a practice note asks for, then call update_note with status done and one short sentence saying what you changed. Act right away with a sensible reading of the request; only ask a question (reply_to_note) if the request can't be understood. It cannot touch any real app or file.",
+            description: "Only for Loupe's built-in practice, where a new user tries Loupe on a pretend app inside Loupe (notes whose app is \"Practice App\"). The pretend app has no code, so this tool stands in for editing it: call it to make the change a practice note asks for, then call update_note with status done and one short sentence saying what you changed. It can rename, resize, recolor, embolden, tick, and remove elements. Act right away with a sensible reading of the request; only ask a question (reply_to_note) if the request can't be understood. \(answerInLoupe) It cannot touch any real app or file.",
             inputSchema: [
                 "type": "object",
                 "properties": [
@@ -59,6 +65,7 @@ extension AgentLinkTools {
                     "color": ["type": "string", "enum": .array(PracticeColor.allCases.map { .string($0.rawValue) })],
                     "bold": ["type": "boolean"],
                     "checked": ["type": "boolean", "description": "Tick or untick the checkbox. Only the reminder element has one."],
+                    "removed": ["type": "boolean", "description": "true takes the element out of the practice app, for requests to delete, remove or hide it. false puts it back."],
                 ],
                 "required": ["element"],
             ],
@@ -96,7 +103,8 @@ extension AgentLinkTools {
                 guard targets.contains(.reminder) else { return .failure("Only the reminder element has a checkbox.") }
                 change.checked = checked
             }
-            guard !change.isEmpty else { return .failure("Pass at least one of text, size, color, bold, or checked.") }
+            change.removed = args["removed"]?.boolValue
+            guard !change.isEmpty else { return .failure("Pass at least one of text, size, color, bold, checked, or removed.") }
             guard practice.agentChanged(targets, change) else { return .failure(practiceClosedMessage) }
 
             return AgentLinkToolResult([
@@ -170,6 +178,7 @@ extension AgentLinkTools {
                 "size": .string(look.size.rawValue),
                 "color": .string(look.color.rawValue),
                 "bold": .bool(look.bold),
+                "removed": .bool(look.removed),
             ]
             if element == .reminder { json["checked"] = .bool(look.checked) }
             return .object(json)
