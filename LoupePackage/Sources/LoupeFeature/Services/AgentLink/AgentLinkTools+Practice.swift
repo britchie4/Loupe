@@ -148,7 +148,7 @@ extension AgentLinkTools {
         let request = model.messages.first
         return [
             "id": .string(practice.noteID.uuidString),
-            "number": 1,
+            "number": .int(max(model.noteNumber, 1)),
             "status": .string(practiceStatus(practice).rawValue),
             "request": .string(request?.text ?? ""),
             "practice": .string(practiceHowTo),
@@ -200,7 +200,7 @@ extension AgentLinkTools.Context {
         if let id = args["id"]?.stringValue {
             return id.caseInsensitiveCompare(practice.noteID.uuidString) == .orderedSame ? practice : nil
         }
-        if args["app"]?.stringValue == AgentLinkTools.practiceAppKey, (args["number"]?.intValue ?? 1) == 1 {
+        if args["app"]?.stringValue == AgentLinkTools.practiceAppKey, (args["number"]?.intValue ?? practice.model.noteNumber) == practice.model.noteNumber {
             return practice
         }
         return nil

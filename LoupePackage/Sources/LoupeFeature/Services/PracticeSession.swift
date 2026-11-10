@@ -55,7 +55,17 @@ public final class PracticeSession {
         waitForAgent()
     }
 
-    public func continueToFinish() { model.continueToFinish() }
+    /// Close the finished note so another one can be left
+    public func leaveAnotherNote() { model.leaveAnotherNote() }
+
+    /// On to the closing screen. Anything still on its way from an agent is dropped.
+    public func continueToFinish() {
+        guard model.continueToFinish() else { return }
+        agentTask?.cancel()
+        agentTask = nil
+        quietTask?.cancel()
+        quietTask = nil
+    }
 
     /// Throw the practice away and start over (also stops a reply that was on its way)
     public func reset() {

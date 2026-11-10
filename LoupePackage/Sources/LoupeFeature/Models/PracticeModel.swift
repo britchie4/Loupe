@@ -230,11 +230,26 @@ public struct PracticeModel: Equatable, Sendable {
     /// The live agent has made no progress for a while: offer the pretend agent instead
     public private(set) var offersPretendAgent = false
 
+    /// Badges left by earlier notes in this practice. The person can leave as many notes
+    /// as they like, one at a time, and the practice app keeps every change.
+    public private(set) var finishedNotes: [PracticeElement: PracticeBadge] = [:]
+    /// The current note's number: 1 for the first note, 2 for the next, and so on
+    public private(set) var noteNumber = 0
+    /// Goes up each time a note is put away, so the note window starts fresh for the next one
+    public private(set) var noteRound = 0
+
     public init() {
         looks = Dictionary(uniqueKeysWithValues: PracticeElement.allCases.map { ($0, PracticeLook(text: $0.title)) })
     }
 
     public var isLive: Bool { liveAgent != nil }
+
+    /// At least one note has been finished (or declined), so the person may move on any time
+    public var hasFinishedANote: Bool { stage == .done || !finishedNotes.isEmpty }
+
+    /// Whether elements of the practice app can be pointed at and clicked right now:
+    /// at the start, and again once a note is finished
+    public var canPickElement: Bool { stage == .pointing || stage == .done }
 
     public func look(of element: PracticeElement) -> PracticeLook {
         looks[element] ?? PracticeLook(text: element.title)
@@ -244,7 +259,7 @@ public struct PracticeModel: Equatable, Sendable {
 
     /// The pointer (or keyboard focus) moved onto an element
     public mutating func hover(_ element: PracticeElement) {
-        guard stage == .pointing else { return }
+        guard canPickElement, !look(of: element).removed else { return }
         hovered = element
     }
 
@@ -258,11 +273,37 @@ public struct PracticeModel: Equatable, Sendable {
     /// The person clicked an element: open the note window on it
     @discardableResult
     public mutating func select(_ element: PracticeElement) -> Bool {
-        guard stage == .pointing else { return false }
+        guard canPickElement, !look(of: element).removed else { return false }
+        if stage == .done { putNoteAway() }
         hovered = nil
         selected = element
         stage = .writingNote
         return true
+    }
+
+    /// Close the finished note to leave another one. Its badge stays on the element.
+    @discardableResult
+    public mutating func leaveAnotherNote() -> Bool {
+        guard stage == .done else { return false }
+        putNoteAway()
+        stage = .pointing
+        return true
+    }
+
+    /// The finished note leaves its badge behind and everything about it is cleared.
+    /// The practice app keeps the changes that were made for it.
+    private mutating func putNoteAway() {
+        if let selected { finishedNotes[selected] = wasDismissed ? .dismissed : .done }
+        selected = nil
+        hovered = nil
+        messages = []
+        liveAgent = nil
+        agentHasRead = false
+        agentIsWorking = false
+        wasDismissed = false
+        appWasChanged = false
+        offersPretendAgent = false
+        noteRound += 1
     }
 
     // MARK: Writing the note
@@ -281,6 +322,9 @@ public struct PracticeModel: Equatable, Sendable {
         guard stage == .writingNote, let text = Self.cleaned(text) else { return false }
         append(.user, text, at: time)
         self.liveAgent = liveAgent
+        noteNumber += 1
+        // A new note on an element takes the place of that element's earlier badge
+        if let selected { finishedNotes[selected] = nil }
         stage = .noteAdded
         return true
     }
@@ -296,13 +340,13 @@ public struct PracticeModel: Equatable, Sendable {
         return true
     }
 
-    /// Leave the practice app for the closing screen. The practice note is thrown away.
+    /// Leave the practice app for the closing screen. The practice notes are thrown away.
+    /// Allowed as soon as one note has been finished, even in the middle of another.
     @discardableResult
     public mutating func continueToFinish() -> Bool {
-        guard stage == .done else { return false }
-        messages = []
-        selected = nil
-        liveAgent = nil
+        guard stage != .finished, hasFinishedANote else { return false }
+        putNoteAway()
+        finishedNotes = [:]
         stage = .finished
         return true
     }
@@ -436,7 +480,7 @@ public struct PracticeModel: Equatable, Sendable {
     /// The element drawn with Loupe's outline: under the pointer, or being written about
     public var outlinedElement: PracticeElement? {
         switch stage {
-        case .pointing: hovered
+        case .pointing, .done: hovered
         case .writingNote: selected
         default: nil
         }
@@ -450,13 +494,20 @@ public struct PracticeModel: Equatable, Sendable {
         }
     }
 
-    /// The badge on the element, once the note exists
+    /// The badge on the current note's element, once the note exists
     public var badge: PracticeBadge? {
         switch stage {
-        case .noteAdded, .questionForYou, .answered: .numbered(1)
+        case .noteAdded, .questionForYou, .answered: .numbered(noteNumber)
         case .done: wasDismissed ? .dismissed : .done
         case .pointing, .writingNote, .finished: nil
         }
+    }
+
+    /// Every badge to draw: earlier notes' badges, and the current note's on its element
+    public var badges: [PracticeElement: PracticeBadge] {
+        var all = finishedNotes
+        if let selected, let badge { all[selected] = badge }
+        return all
     }
 
     /// The agent's latest message asks something
@@ -475,12 +526,14 @@ public struct PracticeModel: Equatable, Sendable {
         }
     }
 
-    /// Which of the three practice steps this is: hover, annotate, agent replies
+    /// Which of the checklist's three steps this is: leave a note, get it to the agent
+    /// (tell your own agent, or answer the practice agent), watch the change
     public var stepNumber: Int {
         switch stage {
-        case .pointing: 1
-        case .writingNote: 2
-        case .noteAdded, .questionForYou, .answered, .done, .finished: 3
+        case .pointing, .writingNote: 1
+        case .noteAdded: isLive && agentHasRead ? 3 : 2
+        case .questionForYou: isLive ? 3 : 2
+        case .answered, .done, .finished: 3
         }
     }
 
@@ -632,6 +685,29 @@ public enum PracticeInterpreter {
     }
 }
 
+// MARK: - Checklist
+
+/// One line of the checklist at the top of the practice. It replaces a paragraph of
+/// instructions: the person sees all three steps, which one they are on, and the one
+/// button that step needs.
+public struct PracticeChecklistItem: Equatable, Identifiable, Sendable {
+    public enum Action: Equatable, Sendable {
+        /// Copy what to say to the person's own agent
+        case copyPhrase(String)
+        /// Go on to the closing screen
+        case continuePractice
+    }
+
+    /// 1, 2 or 3
+    public let id: Int
+    public let text: String
+    /// Shown with a check mark
+    public let isDone: Bool
+    /// The step to do now. It is highlighted and holds the action, if there is one.
+    public let isCurrent: Bool
+    public let action: Action?
+}
+
 // MARK: - Words
 
 /// Every word the practice shows, in one place so it can be checked (no em dashes)
@@ -657,61 +733,83 @@ public enum PracticeCopy {
         "Practice \u{00B7} Step \(number) of \(PracticeModel.stepCount)"
     }
 
-    /// The instruction title for where the practice is
-    public static func title(for model: PracticeModel) -> String {
-        switch model.stage {
-        case .pointing: "Point at anything"
-        case .writingNote: "Say what should change"
-        case .noteAdded:
-            if model.isLive { model.agentHasRead ? "Your agent is on it" : "Now ask your agent" } else { "Your note is pinned" }
-        case .questionForYou:
-            model.agentAskedQuestion ? "Your agent has a question" : "Your agent replied"
-        case .answered:
-            model.isLive && model.agentHasRead ? "Your agent is on it" : "Answer sent"
-        case .done:
-            if model.wasDismissed { "Your agent passed on this one" } else { model.isLive ? "Your agent made the change" : "That's the whole loop" }
-        case .finished: "You're ready"
+    /// The three checklist lines for where the practice is.
+    /// - Parameter connectedAgent: the person's own agent if one is connected right now.
+    ///   Before a note exists, it decides whether the list talks about that agent or the practice one.
+    public static func checklist(for model: PracticeModel, connectedAgent: String? = nil) -> [PracticeChecklistItem] {
+        let noteExists = model.stage != .pointing && model.stage != .writingNote
+        let agent = noteExists ? model.liveAgent : connectedAgent
+        let current = model.stepNumber
+        let allDone = model.stage == .done || model.stage == .finished
+
+        func item(_ number: Int, _ text: String, action: PracticeChecklistItem.Action? = nil) -> PracticeChecklistItem {
+            PracticeChecklistItem(
+                id: number,
+                text: text,
+                isDone: allDone || number < current,
+                isCurrent: number == current,
+                action: number == current ? action : nil
+            )
         }
+
+        // 1. Leave a note
+        let first: String
+        switch model.stage {
+        case .pointing: first = model.hasFinishedANote ? "Click something else to leave another note" : "Click something in the practice app"
+        case .writingNote: first = "Say what should change, then click Add"
+        default: first = "Leave a note"
+        }
+
+        // 2. Get the note to the agent
+        let second: String
+        var secondAction: PracticeChecklistItem.Action?
+        if let agent {
+            if current == 2 {
+                second = "Tell \(agent) \u{201C}\(agentPrompt)\u{201D}"
+                secondAction = .copyPhrase(agentPrompt)
+            } else {
+                second = "Tell \(agent) to check your notes"
+            }
+        } else if current == 2 {
+            second = model.stage == .questionForYou ? "Answer the practice agent in the note" : "The practice agent is reading your note"
+        } else {
+            second = "Answer the practice agent's question"
+        }
+
+        // 3. Watch the change
+        var third = "Watch the practice app change"
+        var thirdAction: PracticeChecklistItem.Action?
+        if allDone {
+            third = model.wasDismissed ? "No change this time. Try another, or continue" : "It changed. Leave another note, or continue"
+            if model.stage == .done { thirdAction = .continuePractice }
+        } else if current == 3, let agent {
+            switch model.stage {
+            case .questionForYou:
+                third = model.agentAskedQuestion ? "Answer \(agent) in the note" : "Read the reply from \(agent) in the note"
+            case .answered where !model.agentHasRead:
+                third = "Tell \(agent) \u{201C}\(agentFollowUp)\u{201D}"
+                thirdAction = .copyPhrase(agentFollowUp)
+            default:
+                third = "Watch the practice app: \(agent) is on it"
+            }
+        }
+
+        var items = [item(1, first), item(2, second, action: secondAction), item(3, third, action: thirdAction)]
+        // When everything is ticked, the last line is still the one to act on
+        if model.stage == .done {
+            items[2] = PracticeChecklistItem(id: 3, text: third, isDone: true, isCurrent: true, action: thirdAction)
+        }
+        return items
     }
 
-    /// The instruction text for where the practice is
-    public static func body(for model: PracticeModel) -> String {
-        let agent = model.liveAgent ?? "your agent"
-        switch model.stage {
-        case .pointing:
-            return "Move your pointer over the practice app. Loupe outlines what you point at. Click to leave a note."
-        case .writingNote:
-            return "Type a note for your coding agent, or use the suggestion. Then click Add."
-        case .noteAdded:
-            if model.isLive {
-                return model.agentHasRead
-                    ? "Your note reached \(agent). Its reply and the change show up right here."
-                    : "Loupe never interrupts your agent. Switch to \(agent) and say \u{201C}\(agentPrompt)\u{201D}."
-            }
-            return "The numbered badge marks the spot. With Agent Link, your coding agent picks the note up from here."
-        case .questionForYou:
-            if model.isLive {
-                return "Type an answer and click Send. Then tell \(agent) you answered."
-            }
-            return "This reply is scripted for practice. With Agent Link, your own agent asks here. Type an answer and click Send."
-        case .answered:
-            if model.isLive {
-                return model.agentHasRead
-                    ? "Your answer reached \(agent). The change shows up right here."
-                    : "Switch to \(agent) and say \u{201C}\(agentFollowUp)\u{201D}. It reads your answer from Loupe."
-            }
-            return "Your answer goes straight back to your agent. No copying, no switching windows."
-        case .done:
-            if model.wasDismissed {
-                return "Agents can decline a note and say why. Nothing in the practice app changed."
-            }
-            return model.isLive
-                ? "That change came from \(agent), which also marked your note done. In your own app, it changes the code."
-                : "The practice app changed and the badge turned green. Your own agent does this in your real app."
-        case .finished:
-            return "Your practice note is gone. Real notes reach your agent in one of two ways."
-        }
+    /// The line to act on now, for reading out
+    public static func currentStep(for model: PracticeModel, connectedAgent: String? = nil) -> String {
+        checklist(for: model, connectedAgent: connectedAgent).first { $0.isCurrent }?.text ?? ""
     }
+
+    public static let leaveAnotherNoteLabel = "Leave Another Note"
+    public static let closingTitle = "You're ready"
+    public static let closingBody = "Your practice notes are gone. Real notes reach your agent in one of two ways."
 
     // Closing screen
     public static let copyTitle = "Copy and paste"
@@ -754,6 +852,7 @@ public enum PracticeCopy {
         var strings = [
             appName, agentQuestion, agentPrompt, agentFollowUp, skipLabel, continueLabel,
             usePretendAgentLabel, noAgentYet, copyPhraseLabel, copiedLabel, suggestionPrefix,
+            leaveAnotherNoteLabel, closingTitle, closingBody,
             copyTitle, copyBody, agentLinkTitle, agentLinkBody,
             connectTitle, connectBody, connectStepOne, connectStepOneDetail, connectStepTwo,
             connectStepThree, connectWaiting, connectOff, practiceWithoutAgent, connectFootnote,

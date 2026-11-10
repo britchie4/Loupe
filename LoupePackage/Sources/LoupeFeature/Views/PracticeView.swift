@@ -4,8 +4,9 @@ import SwiftUI
 // The practice step in setup: a pretend app inside the setup window where a new person
 // tries Loupe's loop (point, leave a note, hear back from an agent) before using it for real.
 //
-// The instructions, step count and Skip stay in one place at the top while the practice
-// app and the note window change underneath. The outline, badge and note window are
+// A three-line checklist, the step count and Skip stay in one place at the top while the
+// practice app and the note window change underneath. The checklist shows every step, which
+// one is next, and the one button that step needs. The outline, badge and note window are
 // look-alikes of the real ones (`OverlayWindowController`, `AnnotationPopover`); they are
 // drawn here on purpose instead of running the real inspection engine, which ignores
 // Loupe's own windows. Nothing here touches the real notes.
@@ -51,16 +52,26 @@ struct PracticeView: View {
                     .foregroundStyle(Color.loupeAccentText)
                     .accessibilityLabel("Practice, step \(session.model.stepNumber) of \(PracticeModel.stepCount)")
                 Spacer()
-                Button(PracticeCopy.skipLabel, action: onSkip)
-                    .buttonStyle(.plain)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHint("Ends the practice. Nothing is saved.")
+                if session.model.hasFinishedANote, stage != .done {
+                    // One note is done, so moving on is always one click away,
+                    // even in the middle of another note
+                    Button(PracticeCopy.continueLabel) { session.continueToFinish() }
+                        .controlSize(.small)
+                        .accessibilityHint("Ends the practice and shows what to do next")
+                } else {
+                    Button(PracticeCopy.skipLabel, action: onSkip)
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHint("Ends the practice. Nothing is saved.")
+                }
             }
-            .padding(.top, 12)
+            .frame(height: 20)
+            .padding(.top, 10)
 
-            instructions
-                .padding(.top, 10)
+            PracticeChecklistView(items: checklist) { session.continueToFinish() }
+                .frame(height: 94, alignment: .top)
+                .padding(.top, 8)
 
             PracticeStageView(session: session)
                 .padding(.top, 12)
@@ -69,60 +80,108 @@ struct PracticeView: View {
         .padding(.horizontal, 24)
     }
 
-    /// Title and one or two lines of what to do, always in the same place
-    private var instructions: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(PracticeCopy.title(for: session.model))
-                    .font(.title2.weight(.semibold))
-                Text(PracticeCopy.body(for: session.model))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-            .id(PracticeCopy.title(for: session.model))
-            .transition(.opacity)
-
-            Spacer(minLength: 0)
-
-            if let phrase = phraseForAgent {
-                CopyPhraseButton(phrase: phrase)
-                    .transition(.opacity)
-            }
-
-            if stage == .done {
-                Button(PracticeCopy.continueLabel) { session.continueToFinish() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.loupeAccentStrong)
-                    .controlSize(.large)
-                    .keyboardShortcut(.defaultAction)
-                    .transition(.opacity)
-            }
-        }
-        .frame(height: 76, alignment: .topLeading)
+    private var checklist: [PracticeChecklistItem] {
+        PracticeCopy.checklist(for: session.model, connectedAgent: session.connectedAgent())
     }
 
-    /// What to say to the person's own agent, while the practice is waiting on it
-    private var phraseForAgent: String? {
-        let model = session.model
-        guard model.isLive, !model.agentHasRead else { return nil }
-        switch stage {
-        case .noteAdded: return PracticeCopy.agentPrompt
-        case .answered: return PracticeCopy.agentFollowUp
-        default: return nil
-        }
-    }
-
-    /// Read each new instruction (and the agent's line, when there is one) to VoiceOver
+    /// Read each new step (and the agent's line, when there is one) to VoiceOver
     private func announce(_ stage: PracticeStage) {
+        guard stage != .finished else { return }
         var parts: [String] = []
         if let last = session.model.messages.last, last.author == .agent {
             parts.append("Agent: \(last.text)")
         }
-        parts.append(PracticeCopy.title(for: session.model) + ".")
-        parts.append(PracticeCopy.body(for: session.model))
+        let step = PracticeCopy.currentStep(for: session.model, connectedAgent: session.connectedAgent())
+        parts.append("Step \(session.model.stepNumber) of \(PracticeModel.stepCount). \(step).")
         AccessibilityNotification.Announcement(parts.joined(separator: " ")).post()
+    }
+}
+
+// MARK: - Checklist
+
+/// The three steps of the practice. Finished ones are ticked, the one to do now is
+/// highlighted and holds its button, and the ones still to come are listed plainly.
+private struct PracticeChecklistView: View {
+    let items: [PracticeChecklistItem]
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(items) { item in
+                row(item)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Practice steps")
+    }
+
+    private func row(_ item: PracticeChecklistItem) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                marker(item)
+                Text(item.text)
+                    .font(.callout.weight(item.isCurrent ? .semibold : .regular))
+                    .foregroundStyle(item.isCurrent ? .primary : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .id(item.text)
+                    .transition(.opacity)
+            }
+            // The step reads as one thing; its button stays a button of its own
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Step \(item.id), \(item.isDone ? "done" : item.isCurrent ? "do this now" : "coming up"): \(item.text)")
+            Spacer(minLength: 4)
+            switch item.action {
+            case .copyPhrase(let phrase):
+                CopyPhraseButton(phrase: phrase)
+            case .continuePractice:
+                Button(PracticeCopy.continueLabel, action: onContinue)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.loupeAccentStrong)
+                    .keyboardShortcut(.defaultAction)
+            case nil:
+                EmptyView()
+            }
+        }
+        .padding(.horizontal, 8)
+        // Every line is the same height, so the list never shifts as the highlight moves
+        .frame(height: 30)
+        .background {
+            if item.isCurrent {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.loupeAccent.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.loupeAccent.opacity(0.75), lineWidth: 1.5)
+                    )
+            }
+        }
+    }
+
+    /// A green check when done, the step's number on coral when it is the one to do,
+    /// and the number in a plain ring while it is still to come
+    @ViewBuilder
+    private func marker(_ item: PracticeChecklistItem) -> some View {
+        if item.isDone {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(Color(practiceHex: 0x2E9D55))
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
+        } else {
+            Text("\(item.id)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(item.isCurrent ? Color.white : Color.secondary)
+                .frame(width: 18, height: 18)
+                .background {
+                    if item.isCurrent {
+                        Circle().fill(Color.loupeAccentStrong)
+                    } else {
+                        Circle().stroke(Color.secondary.opacity(0.7), lineWidth: 1.5)
+                    }
+                }
+                .accessibilityHidden(true)
+        }
     }
 }
 
@@ -151,6 +210,12 @@ private struct PracticeStageView: View {
                     ZStack(alignment: .topLeading) {
                         if let element = session.model.outlinedElement, let anchor = anchors[element] {
                             outline(for: element, frame: proxy[anchor], stageWidth: proxy.size.width)
+                        }
+                        // Earlier notes keep their badges while another note is left
+                        ForEach(PracticeElement.allCases, id: \.self) { element in
+                            if let badge = session.model.badges[element], let anchor = anchors[element] {
+                                badgeView(badge, frame: proxy[anchor])
+                            }
                         }
                         if let element = session.model.selected, let anchor = anchors[element] {
                             noteLayer(for: element, frame: proxy[anchor], stageSize: proxy.size)
@@ -197,15 +262,17 @@ private struct PracticeStageView: View {
         }
     }
 
-    /// The badge on the element and the note window below it
+    /// A note's badge on its element
+    private func badgeView(_ badge: PracticeBadge, frame: CGRect) -> some View {
+        PracticeBadgeView(badge: badge)
+            .position(x: frame.maxX + 2, y: frame.minY - 2)
+            .allowsHitTesting(false)
+            .transition(reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity))
+    }
+
+    /// The note window below its element
     @ViewBuilder
     private func noteLayer(for element: PracticeElement, frame: CGRect, stageSize: CGSize) -> some View {
-        if let badge = session.model.badge {
-            PracticeBadgeView(badge: badge)
-                .position(x: frame.maxX + 2, y: frame.minY - 2)
-                .transition(reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity))
-        }
-
         if session.model.isNoteOpen {
             // Below the element, like the real note window, and kept inside the stage
             let x = min(max(frame.midX - noteWidth / 2, 6), stageSize.width - noteWidth - 6)
@@ -217,6 +284,8 @@ private struct PracticeStageView: View {
             )
             .frame(width: noteWidth)
             .offset(x: x, y: y)
+            // Each note gets a fresh window, so nothing typed for the last one carries over
+            .id(session.model.noteRound)
             .transition(reduceMotion ? .opacity : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
         }
     }
@@ -369,7 +438,7 @@ private struct PracticeAppView: View {
             if inside { session.hover(element) } else { session.unhover(element) }
         }
         .anchorPreference(key: PracticeFrameKey.self, value: .bounds) { [element: $0] }
-        .allowsHitTesting(session.model.stage == .pointing && !isRemoved(element))
+        .allowsHitTesting(session.model.canPickElement && !isRemoved(element))
         .accessibilityLabel(element.accessibilityLabel(showing: session.model.look(of: element).text))
         .accessibilityHint("Opens a practice note on this element")
         // A removed element keeps its place, so nothing else jumps and its badge stays put
@@ -397,8 +466,8 @@ private struct PracticeOutline: View {
     }
 }
 
-/// The note's badge: its number on coral while open, a check on green when done,
-/// its number on grey when the agent declined
+/// A note's badge: its number on coral while open, a check on green when done,
+/// a dash on grey when the agent declined
 private struct PracticeBadgeView: View {
     let badge: PracticeBadge
 
@@ -412,9 +481,9 @@ private struct PracticeBadgeView: View {
 
     private var label: String {
         switch badge {
-        case .numbered: "Note 1"
-        case .done: "Note 1, done"
-        case .dismissed: "Note 1, dismissed"
+        case .numbered(let number): "Note \(number)"
+        case .done: "Finished note"
+        case .dismissed: "Declined note"
         }
     }
 
@@ -422,12 +491,17 @@ private struct PracticeBadgeView: View {
         ZStack {
             Circle().fill(fill)
             Circle().stroke(Color.white, lineWidth: 2)
-            if badge == .done {
+            switch badge {
+            case .done:
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .heavy))
                     .foregroundStyle(.white)
-            } else {
-                Text("1")
+            case .dismissed:
+                Image(systemName: "minus")
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(.white)
+            case .numbered(let number):
+                Text("\(number)")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
             }
@@ -522,7 +596,8 @@ private struct CopyPhraseButton: View {
             NSPasteboard.general.setString(phrase, forType: .string)
             copied = true
         }
-        .controlSize(.large)
+        .buttonStyle(.borderedProminent)
+        .tint(Color.loupeAccentStrong)
         .help(phrase)
         .accessibilityLabel(copied ? "Copied" : "Copy the phrase: \(phrase)")
         .onChange(of: phrase) { copied = false }
@@ -564,8 +639,16 @@ private struct PracticeNoteWindow: View {
                 newNoteBody
             } else {
                 thread
-                if stage != .done {
-                    Divider().opacity(0.6)
+                Divider().opacity(0.6)
+                if stage == .done {
+                    HStack {
+                        Spacer()
+                        Button(PracticeCopy.leaveAnotherNoteLabel) { session.leaveAnotherNote() }
+                            .accessibilityHint("Closes this note. The practice app keeps its changes.")
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                } else {
                     composer
                 }
             }
@@ -644,7 +727,7 @@ private struct PracticeNoteWindow: View {
     /// Tallest the conversation gets before it scrolls: whatever the stage leaves
     /// after the header and the reply box
     private var maxThreadHeight: CGFloat {
-        let chrome: CGFloat = stage == .done ? 54 : 106
+        let chrome: CGFloat = 106
         return max(90, maxHeight - chrome)
     }
 
@@ -684,6 +767,14 @@ private struct PracticeNoteWindow: View {
             .frame(height: min(max(threadHeight, 1), maxThreadHeight))
             .onChange(of: session.model.messages.count) {
                 if let last = session.model.messages.last {
+                    scroller.scrollTo(last.id, anchor: .bottom)
+                }
+            }
+            // The agent's closing line is the payoff. When the note finishes, the room for
+            // the conversation changes, so bring that line back into view afterwards.
+            .onChange(of: stage) { _, newStage in
+                guard newStage == .done, let last = session.model.messages.last else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     scroller.scrollTo(last.id, anchor: .bottom)
                 }
             }
@@ -856,11 +947,11 @@ private struct PracticeFinishView: View {
             LoupeMark()
                 .frame(width: 92)
 
-            Text("You're ready")
+            Text(PracticeCopy.closingTitle)
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Your practice note is gone. Real notes reach your agent in one of two ways.")
+            Text(PracticeCopy.closingBody)
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

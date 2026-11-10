@@ -73,7 +73,7 @@ struct PracticeTests {
         model.hover(.reminder)
         expect(model.select(.reminder), true)
         #expect(model.stage == .writingNote)
-        #expect(model.stepNumber == 2)
+        #expect(model.stepNumber == 1)
         #expect(model.isNoteOpen)
         #expect(model.selected == .reminder)
         #expect(model.outlinedElement == .reminder)
@@ -105,7 +105,7 @@ struct PracticeTests {
         var model = practice(at: .writingNote)
         expect(model.addNote("  make this bigger \n"), true)
         #expect(model.stage == .noteAdded)
-        #expect(model.stepNumber == 3)
+        #expect(model.stepNumber == 2)
         #expect(model.messages.map(\.text) == ["make this bigger"])
         #expect(model.messages.first?.author == .user)
         #expect(model.badge == .numbered(1))
@@ -234,12 +234,17 @@ struct PracticeTests {
         // The pretend agent stays out of it
         #expect(model.pendingAgentMove == nil)
         expect(model.agentMoves(), false)
-        #expect(PracticeCopy.title(for: model) == "Now ask your agent")
-        #expect(PracticeCopy.body(for: model).contains(PracticeCopy.agentPrompt))
+        // The step to do now is telling that agent, with the phrase ready to copy
+        var step = PracticeCopy.checklist(for: model)[1]
+        #expect(step.isCurrent)
+        #expect(step.text == "Tell Claude Code \u{201C}Check my Loupe notes\u{201D}")
+        #expect(step.action == .copyPhrase(PracticeCopy.agentPrompt))
 
         model.agentRead()
         #expect(model.agentHasRead)
-        #expect(PracticeCopy.title(for: model) == "Your agent is on it")
+        step = PracticeCopy.checklist(for: model)[1]
+        #expect(step.isDone && !step.isCurrent && step.action == nil)
+        #expect(PracticeCopy.currentStep(for: model) == "Watch the practice app: Claude Code is on it")
         expect(model.agentMarkedSeen(), true)
         #expect(model.status?.label == "Agent working")
     }
@@ -258,7 +263,7 @@ struct PracticeTests {
         #expect(model.stage == .done)
         #expect(model.badge == .done)
         #expect(model.messages.last?.text == "Made the button bigger and blue.")
-        #expect(PracticeCopy.title(for: model) == "Your agent made the change")
+        #expect(PracticeCopy.currentStep(for: model) == "It changed. Leave another note, or continue")
         // Nothing more can be done to a finished note
         expect(model.agentChanged([.heading], PracticeChange(color: .red)), false)
         expect(model.agentReplied("one more thing"), false)
@@ -284,7 +289,7 @@ struct PracticeTests {
         expect(model.agentFinished(message: "I can't do that here.", dismissed: true), true)
         #expect(model.badge == .dismissed)
         #expect(model.status?.label == "Dismissed")
-        #expect(PracticeCopy.title(for: model) == "Your agent passed on this one")
+        #expect(PracticeCopy.currentStep(for: model) == "No change this time. Try another, or continue")
     }
 
     @Test func aQuietAgentCanBeSwappedForThePretendOne() {
@@ -339,7 +344,8 @@ struct PracticeTests {
             let start = practice(at: stage)
 
             var model = start
-            if stage != .pointing {
+            // Elements can be picked at the start, and again once a note is finished
+            if stage != .pointing, stage != .done {
                 expect(model.select(.heading), false)
                 model.hover(.heading)
             }
@@ -352,6 +358,154 @@ struct PracticeTests {
             if stage != .done { expect(model.continueToFinish(), false) }
             #expect(model == start, "\(stage) changed after an action that doesn't belong to it")
         }
+    }
+
+    // MARK: Checklist
+
+    /// At every point exactly one step is the one to do, earlier steps are ticked,
+    /// and only that step carries a button
+    @Test func theChecklistAlwaysHasOneStepToDo() {
+        var moments = PracticeStage.allCases.filter { $0 != .finished }.map { practice(at: $0) }
+        var live = livePractice()
+        moments.append(live)
+        live.agentRead()
+        moments.append(live)
+        live.agentReplied("Which one?")
+        moments.append(live)
+        live.answer("That one")
+        moments.append(live)
+        live.agentRead()
+        moments.append(live)
+
+        for model in moments {
+            let items = PracticeCopy.checklist(for: model, connectedAgent: "Claude Code")
+            #expect(items.map(\.id) == [1, 2, 3])
+            #expect(items.filter(\.isCurrent).count == 1, "\(model.stage)")
+            let current = items.first { $0.isCurrent }
+            #expect(current?.id == model.stepNumber)
+            for item in items where !item.isCurrent {
+                #expect(item.action == nil)
+                #expect(item.isDone == (item.id < model.stepNumber || model.stage == .done))
+            }
+        }
+    }
+
+    @Test func theChecklistWalksThroughTheScriptedPractice() {
+        func current(_ stage: PracticeStage) -> PracticeChecklistItem? {
+            PracticeCopy.checklist(for: practice(at: stage)).first { $0.isCurrent }
+        }
+        #expect(current(.pointing)?.text == "Click something in the practice app")
+        #expect(current(.writingNote)?.text == "Say what should change, then click Add")
+        #expect(current(.noteAdded)?.text == "The practice agent is reading your note")
+        #expect(current(.questionForYou)?.text == "Answer the practice agent in the note")
+        #expect(current(.answered)?.text == "Watch the practice app change")
+        let done = current(.done)
+        #expect(done?.id == 3)
+        #expect(done?.isDone == true)
+        #expect(done?.action == .continuePractice)
+    }
+
+    /// Before a note exists, the list already says whose turn comes next
+    @Test func theChecklistNamesTheConnectedAgentUpFront() {
+        let model = PracticeModel()
+        #expect(PracticeCopy.checklist(for: model, connectedAgent: "Codex")[1].text == "Tell Codex to check your notes")
+        #expect(PracticeCopy.checklist(for: model)[1].text == "Answer the practice agent's question")
+    }
+
+    @Test func aLiveAnswerNeedsTheAgentToldAgain() {
+        var model = livePractice()
+        model.agentRead()
+        model.agentReplied("How much bigger?")
+        #expect(PracticeCopy.currentStep(for: model) == "Answer Claude Code in the note")
+        model.answer("A lot")
+        let step = PracticeCopy.checklist(for: model)[2]
+        #expect(step.text == "Tell Claude Code \u{201C}I answered in Loupe\u{201D}")
+        #expect(step.action == .copyPhrase(PracticeCopy.agentFollowUp))
+    }
+
+    // MARK: More than one note
+
+    @Test func anotherNoteCanBeLeftOnceOneIsDone() {
+        var model = practice(at: .done, note: "make this bigger")
+        #expect(model.hasFinishedANote)
+        #expect(model.canPickElement)
+        let grown = model.look(of: .saveButton)
+
+        // Clicking another element puts the finished note away and starts the next
+        model.hover(.heading)
+        #expect(model.outlinedElement == .heading)
+        expect(model.select(.heading), true)
+        #expect(model.stage == .writingNote)
+        #expect(model.selected == .heading)
+        #expect(model.messages.isEmpty)
+        #expect(model.noteRound == 1)
+        #expect(model.finishedNotes == [.saveButton: .done])
+        // The practice app keeps what the first note changed
+        #expect(model.look(of: .saveButton) == grown)
+
+        expect(model.addNote("make it green"), true)
+        #expect(model.noteNumber == 2)
+        #expect(model.badge == .numbered(2))
+        #expect(model.badges == [.saveButton: .done, .heading: .numbered(2)])
+
+        model.agentMoves()
+        model.answer("only here")
+        model.agentMoves()
+        #expect(model.stage == .done)
+        #expect(model.look(of: .heading).color == .green)
+        #expect(model.look(of: .saveButton) == grown)
+        #expect(model.badges == [.saveButton: .done, .heading: .done])
+    }
+
+    @Test func theFinishedNoteCanBeClosedFirst() {
+        var model = practice(at: .done)
+        expect(model.leaveAnotherNote(), true)
+        #expect(model.stage == .pointing)
+        #expect(!model.isNoteOpen)
+        #expect(model.finishedNotes == [.saveButton: .done])
+        #expect(PracticeCopy.currentStep(for: model) == "Click something else to leave another note")
+        // Only a finished note can be closed this way
+        expect(model.leaveAnotherNote(), false)
+        var open = practice(at: .noteAdded)
+        expect(open.leaveAnotherNote(), false)
+    }
+
+    @Test func aNewNoteOnTheSameElementReplacesItsBadge() {
+        var model = practice(at: .done)
+        model.select(.saveButton)
+        #expect(model.badges == [.saveButton: .done])
+        model.addNote("now make it blue")
+        #expect(model.badges == [.saveButton: .numbered(2)])
+    }
+
+    /// Once one note is done, moving on is allowed from anywhere, even mid-note
+    @Test func continueIsAvailableThroughoutAfterTheFirstNote() {
+        // Not before a note has finished
+        for stage in [PracticeStage.pointing, .writingNote, .noteAdded, .questionForYou, .answered] {
+            var model = practice(at: stage)
+            #expect(!model.hasFinishedANote)
+            expect(model.continueToFinish(), false)
+        }
+
+        var model = practice(at: .done)
+        model.select(.heading)
+        model.addNote("make it green")
+        #expect(model.hasFinishedANote)
+        expect(model.continueToFinish(), true)
+        #expect(model.stage == .finished)
+        #expect(model.messages.isEmpty)
+        #expect(model.badges.isEmpty)
+        #expect(!model.hasOpenNote)
+    }
+
+    @Test func aRemovedElementCannotBePickedAgain() {
+        var model = practice(at: .done, note: "delete this button")
+        #expect(model.look(of: .saveButton).removed)
+        model.hover(.saveButton)
+        #expect(model.outlinedElement == nil)
+        expect(model.select(.saveButton), false)
+        #expect(model.stage == .done)
+        expect(model.select(.heading), true)
     }
 
     // MARK: Words
@@ -390,7 +544,8 @@ struct PracticeTests {
         live.agentFinished(message: "Done.")
         moments.append(live)
         for moment in moments {
-            strings += [PracticeCopy.title(for: moment), PracticeCopy.body(for: moment)]
+            strings += PracticeCopy.checklist(for: moment).map(\.text)
+            strings += PracticeCopy.checklist(for: moment, connectedAgent: "Claude Code").map(\.text)
         }
 
         // Everything the pretend agent can say

@@ -218,6 +218,40 @@ struct PracticeAgentToolsTests {
         #expect(status["practice"]?.stringValue == AgentLinkTools.practiceStatusLine)
     }
 
+    /// A person can leave several notes, one at a time. Each one reaches the agent as its own note.
+    @Test func aSecondNoteReachesTheAgentAsANewNote() throws {
+        leaveLiveNote("Make this button bigger")
+        let firstID = noteID
+        _ = try call("list_notes")
+        _ = try call("change_practice_app", ["element": "saveButton", "size": "bigger"])
+        _ = try call("update_note", ["id": firstID, "status": "done", "message": "Bigger."])
+        #expect(practice.model.stage == .done)
+
+        practice.select(.heading)
+        practice.addNote("make it green")
+        #expect(noteID != firstID)
+
+        let found = notes(try call("list_notes").result)
+        #expect(found.count == 1)
+        let note = try #require(found.first)
+        #expect(note["id"] == noteID)
+        #expect(note["number"]?.intValue == 2)
+        #expect(note["request"]?.stringValue == "make it green")
+        #expect(note["replies"] == .array([]))
+
+        // The first note is closed for good, and the new one needs its own change before "done"
+        #expect(try call("get_note", ["id": firstID]).isError)
+        #expect(try call("update_note", ["id": noteID, "status": "done", "message": "Done."]).isError)
+        _ = try call("change_practice_app", ["element": "heading", "color": "green"])
+        #expect(!(try call("update_note", ["id": noteID, "status": "done", "message": "Green now."])).isError)
+
+        // Both changes are still there
+        #expect(practice.model.look(of: .saveButton).size == .bigger)
+        #expect(practice.model.look(of: .heading).color == .green)
+        #expect(practice.model.badges == [.saveButton: .done, .heading: .done])
+        #expect(store.annotations.isEmpty)
+    }
+
     @Test func anAgentCanDeclineThePracticeNote() throws {
         leaveLiveNote("delete my files")
         let declined = try call("update_note", ["id": noteID, "status": "dismissed", "message": "I can only restyle the practice app."])
