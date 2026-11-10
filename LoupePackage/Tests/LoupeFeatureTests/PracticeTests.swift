@@ -413,6 +413,14 @@ struct PracticeTests {
         #expect(PracticeCopy.copyBody.contains("Copy"))
     }
 
+    @Test func theClosingScreenDoesNotTellAConnectedPersonToTurnAgentLinkOn() {
+        let text = PracticeCopy.agentLinkConnectedBody(agent: "Claude Code")
+        #expect(text.contains("Agent Link is on"))
+        #expect(text.contains("Claude Code"))
+        #expect(text.contains(PracticeCopy.agentPrompt))
+        #expect(!text.contains("Settings"))
+    }
+
     @Test func agentsThatDoNotIntroduceThemselvesAreYourAgent() {
         #expect(PracticeCopy.displayName(forAgent: "Agent") == "your agent")
         #expect(PracticeCopy.displayName(forAgent: "Claude Code") == "Claude Code")

@@ -705,6 +705,11 @@ public enum PracticeCopy {
     public static let agentLinkTitle = "Agent Link"
     public static let agentLinkBody = "Skip the pasting. Turn on Agent Link in Settings, and your agent reads your notes and replies right in Loupe."
 
+    /// The Agent Link card for someone whose own agent is already connected: nothing left to turn on
+    public static func agentLinkConnectedBody(agent: String) -> String {
+        "Skip the pasting. Agent Link is on, so leave your notes and tell \(agent) \u{201C}\(agentPrompt)\u{201D}. It replies right in Loupe."
+    }
+
     // Connecting an agent before the practice
     public static let connectTitle = "Connect your coding agent"
     public static let connectBody = "With Agent Link, your agent reads your notes and replies right in Loupe. Connect it now and it joins the practice for real."
@@ -738,7 +743,7 @@ public enum PracticeCopy {
             copyTitle, copyBody, agentLinkTitle, agentLinkBody,
             connectTitle, connectBody, connectStepOne, connectStepOneDetail, connectStepTwo,
             connectStepThree, connectWaiting, connectOff, practiceWithoutAgent, connectFootnote,
-            connected(["Claude Code"]), practiceWith("Claude Code"),
+            connected(["Claude Code"]), practiceWith("Claude Code"), agentLinkConnectedBody(agent: "Claude Code"),
         ]
         strings += (1...PracticeModel.stepCount).map(stepLabel)
         for element in PracticeElement.allCases {

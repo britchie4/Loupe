@@ -26,7 +26,7 @@ struct PracticeView: View {
     var body: some View {
         ZStack {
             if stage == .finished {
-                PracticeFinishView(finishLabel: finishLabel, onFinish: onFinish)
+                PracticeFinishView(finishLabel: finishLabel, connectedAgent: session.connectedAgent(), onFinish: onFinish)
                     .transition(.opacity)
             } else {
                 practice
@@ -518,6 +518,13 @@ private struct CopyPhraseButton: View {
         .help(phrase)
         .accessibilityLabel(copied ? "Copied" : "Copy the phrase: \(phrase)")
         .onChange(of: phrase) { copied = false }
+        // "Copied" is a brief confirmation, not a lasting state: the clipboard may hold
+        // something else a minute later, so the button goes back to offering the copy
+        .task(id: copied) {
+            guard copied else { return }
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled { copied = false }
+        }
     }
 }
 
@@ -826,7 +833,13 @@ private extension View {
 /// One short screen on the two ways real notes reach an agent: Copy, and Agent Link
 private struct PracticeFinishView: View {
     let finishLabel: String
+    /// The person's own agent, when one is connected through Agent Link right now
+    let connectedAgent: String?
     let onFinish: () -> Void
+
+    private var agentLinkBody: String {
+        connectedAgent.map(PracticeCopy.agentLinkConnectedBody(agent:)) ?? PracticeCopy.agentLinkBody
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -848,7 +861,7 @@ private struct PracticeFinishView: View {
 
             VStack(spacing: 10) {
                 card(icon: "doc.on.doc", title: PracticeCopy.copyTitle, text: PracticeCopy.copyBody)
-                card(icon: "bubble.left.and.bubble.right", title: PracticeCopy.agentLinkTitle, text: PracticeCopy.agentLinkBody)
+                card(icon: "bubble.left.and.bubble.right", title: PracticeCopy.agentLinkTitle, text: agentLinkBody)
             }
             .padding(.horizontal, 40)
             .padding(.top, 6)
