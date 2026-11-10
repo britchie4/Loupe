@@ -55,18 +55,38 @@ public enum AgentSetupTarget: String, CaseIterable, Identifiable, Sendable {
         action(executablePath: Self.executablePath)
     }
 
-    func action(executablePath path: String) -> Action {
-        let quoted = Self.shellQuoted(path)
+    /// What the person has to do once setup has run, said by the setup command itself.
+    /// A chat that was open before setup never gets Loupe's tools, and nothing else tells
+    /// the person so. In Terminal this is printed. Pasted into an agent's chat, the agent
+    /// runs the command and passes the message on.
+    var afterSetupMessage: String? {
         switch self {
         case .claudeCode:
-            return .copy("claude mcp add --scope user loupe -- \(quoted) --mcp")
+            "Loupe is added. Start a new session in Claude Code to connect it. Sessions that are already open cannot see Loupe."
         case .codex:
-            return .copy("codex mcp add loupe -- \(quoted) --mcp")
+            "Loupe is added. Start a new chat in Codex to connect it. Chats that are already open cannot see Loupe."
+        case .xcode:
+            "Next, start a new conversation in Xcode to connect Loupe. Conversations that are already open cannot see it."
+        case .cursor, .other:
+            nil
+        }
+    }
+
+    func action(executablePath path: String) -> Action {
+        let quoted = Self.shellQuoted(path)
+        let say = afterSetupMessage.map { "echo \(Self.shellQuoted($0))" } ?? ""
+        switch self {
+        case .claudeCode:
+            // The message only prints when adding Loupe worked
+            return .copy("claude mcp add --scope user loupe -- \(quoted) --mcp && \(say)")
+        case .codex:
+            return .copy("codex mcp add loupe -- \(quoted) --mcp && \(say)")
         case .xcode:
             let base = "$HOME/Library/Developer/Xcode/CodingAssistant"
             return .copy("""
             CLAUDE_CONFIG_DIR="\(base)/ClaudeAgentConfig" claude mcp add --scope user loupe -- \(quoted) --mcp
             CODEX_HOME="\(base)/codex" codex mcp add loupe -- \(quoted) --mcp
+            \(say)
             """)
         case .cursor:
             return .open(Self.cursorInstallLink(executablePath: path))
@@ -78,7 +98,7 @@ public enum AgentSetupTarget: String, CaseIterable, Identifiable, Sendable {
             Command: \(path)
             Arguments: --mcp
 
-            Once it's added (you may need to restart), call Loupe's get_status tool to confirm the connection.
+            Once it's added, call Loupe's get_status tool to confirm the connection. If Loupe's tools are not available in this chat yet, tell me to start a new chat: chats that are already open cannot see newly added tools.
             """)
         }
     }
