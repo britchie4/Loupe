@@ -7,7 +7,7 @@
 <p align="center"><b>Point at your Mac app. Your agent fixes it.</b></p>
 
 <p align="center">
-  <a href="https://britchie4.github.io/Loupe/">Website</a> ·
+  <a href="https://loupemac.app/">Website</a> ·
   <a href="https://github.com/britchie4/Loupe/releases/latest">Download</a> ·
   <a href="#agent-link">Agent Link</a> ·
   <a href="#build-from-source">Build from source</a>

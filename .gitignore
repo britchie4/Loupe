@@ -75,6 +75,7 @@ docs/*
 !docs/icon.svg
 !docs/loupe-note.jpg
 !docs/social-preview.png
+!docs/CNAME
 !docs/demo.mp4
 !docs/demo-thumb.png
 !docs/appcast.xml
