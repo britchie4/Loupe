@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Loupe. Point at your Mac app. Your agent fixes it.</title>
-<meta name="description" content="Loupe is a free Mac utility. Point at anything in a running Mac app, say what should change, and your coding agent gets a note that says exactly what you pointed at.">
+<meta name="description" content="Loupe is a free Mac app. Point at anything in a running Mac app, write what you want changed, and your coding agent gets a note that says exactly what you meant.">
 <meta property="og:title" content="Loupe. Point at your Mac app. Your agent fixes it.">
-<meta property="og:description" content="Leave notes on any Mac app. Your coding agent reads them, asks when unsure, and reports back.">
+<meta property="og:description" content="Leave notes on any Mac app. Your coding agent reads them, asks you when it isn't sure, and tells you when it's done.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://britchie4.github.io/Loupe/">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -286,8 +286,8 @@ p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
 .more pre{margin-top:12px}
 
 /* Agent Link limits: one dark panel, a real switch, and pieces of the real interface */
-.link{background:#14161b;color:#f6f3ee;border-radius:24px;padding:clamp(24px,4.5vw,52px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px 56px;align-items:center;border:1px solid var(--line)}
-.link h2{margin:0 0 16px;font-size:clamp(30px,4.2vw,46px);line-height:1.04}
+.alink{background:#14161b;color:#f6f3ee;border-radius:24px;padding:clamp(24px,4.5vw,52px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px 56px;align-items:center;border:1px solid var(--line)}
+.alink h2{margin:0 0 16px;font-size:clamp(30px,4.2vw,46px);line-height:1.04}
 .link-say p{color:#a9a59e;max-width:42ch;margin-bottom:26px}
 .link-switch{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:14px;align-items:center;justify-content:start;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
 .link-switch .knob{grid-row:1 / span 2;width:58px;height:34px;border-radius:99px;background:#3a3e48;position:relative;transition:background .2s}
@@ -301,7 +301,7 @@ p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
 .link-list li:first-child{border-top:0}
 .link-list b{display:block;color:#f6f3ee;font-size:17px;font-weight:600}
 .link-list .can{opacity:.38}
-.link.on .link-list .can{opacity:1}
+.alink.on .link-list .can{opacity:1}
 .link-list .never b{color:#ff8466}
 .frag{display:flex;align-items:center;gap:8px;justify-content:flex-start;min-height:34px}
 .f-msg{font-size:12px;line-height:16px;color:#fff;border-radius:10px;padding:7px 10px;background:rgba(255,91,58,.2);box-shadow:inset 0 0 0 1px rgba(255,91,58,.4);white-space:nowrap}
@@ -312,7 +312,7 @@ p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
 .f-badge svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .f-look{font-size:13px;font-weight:500;color:#1d1d1f;background:#ececee;border-radius:7px;padding:5px 12px;margin-left:4px;outline:2px solid #ff5b3a;outline-offset:2px;box-shadow:0 0 0 6px rgba(255,91,58,.18)}
 .f-lock{width:30px;height:30px;stroke:#ff8466;fill:none;stroke-width:1.7;stroke-linecap:round;margin-left:2px}
-@media (max-width:820px){.link{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:820px){.alink{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:480px){.link-list li{grid-template-columns:minmax(0,1fr);gap:8px}}
 @media (prefers-reduced-motion: reduce){.link-switch .knob,.link-switch .knob::after,.link-list li{transition:none}}
 
@@ -359,11 +359,11 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   <div class="wrap top">
   <div class="hero">
     <h1>Point at your Mac app. <span>Your agent fixes it.</span></h1>
-    <p class="lede">Point at anything in a running Mac app and say what should change. Your coding agent gets a note that says exactly what you pointed at.</p>
+    <p class="lede">Loupe is a free Mac app I built for working with coding agents. You point at a button, label or menu in a running Mac app, write what you want changed, and your agent gets a note that says exactly which one you meant.</p>
     <div class="cta">
       <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download for Mac</a>
       <a class="btn ghost star" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>Star on GitHub<span class="count" id="stars" hidden></span></a>
-      <small>Free and open source. macOS 14 or later.</small>
+      <small>Free and open source. Works on macOS 14 and later.</small>
     </div>
   </div>
   </div>
@@ -445,7 +445,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
 
   <div class="wrap demo" id="try">
     <h2>Try it yourself</h2>
-    <p class="sim">Simulated in your browser. On your Mac, your own agent replies.</p>
+    <p class="sim">This one runs in your browser, so the agent is pretend. On your Mac, it's your own agent that replies.</p>
     <ol class="check" id="check" aria-live="polite"></ol>
 
     <div class="desk" id="desk">
@@ -496,10 +496,10 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     <div class="wrap">
       <h2>How it works</h2>
       <dl class="rows">
-        <div><dt>Point</dt><dd>Loupe highlights what is under your pointer and names it.</dd></div>
-        <div><dt>Leave a note</dt><dd>Click and say what should change. Each note gets a numbered badge.</dd></div>
-        <div><dt>Hand it off</dt><dd>Tell your agent “Check my Loupe notes”. It asks on the note if unsure, changes your code, and the badge turns green.</dd></div>
-        <div><dt>Or copy</dt><dd>No agent connected? Click Copy and paste your notes into any coding agent.</dd></div>
+        <div><dt>Point</dt><dd>Open Loupe and pick the app you're working on. As you move over it, Loupe highlights whatever is under your pointer and tells you what it is.</dd></div>
+        <div><dt>Leave a note</dt><dd>Click the thing you want changed and write the change in your own words. The note gets a numbered badge so you can see where it is.</dd></div>
+        <div><dt>Hand it off</dt><dd>Tell your agent “Check my Loupe notes”. It reads them, asks you on the note if something isn't clear, makes the change in your code, and turns the badge green.</dd></div>
+        <div><dt>Or copy</dt><dd>If you haven't connected an agent, click Copy and paste your notes into whichever coding agent you use.</dd></div>
       </dl>
       <details class="more">
         <summary>See what a copied note looks like</summary>
@@ -518,7 +518,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
 
   <section id="agents">
     <div class="wrap">
-      <div class="link" id="link">
+      <div class="alink" id="link">
         <div class="link-say">
           <h2>What your agent can and can't do</h2>
           <p>Agent Link is off until you turn it on in Loupe's Settings. Once it's on, your agent can read the notes you leave and look at the app you picked, so it can check its own work. It can't click or type in any of your apps, and all of this stays on your Mac.</p>
@@ -540,8 +540,8 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
       <h2>Set up Agent Link</h2>
       <ol class="setup-steps">
         <li><span><b>Turn on Agent Link</b> in Loupe's Settings.</span></li>
-        <li><span><b>Add Loupe to your agent</b> with the command below, or the button in Settings.</span></li>
-        <li><span><b>Start a new session</b> in your agent.</span></li>
+        <li><span><b>Add Loupe to your agent</b> with the command below. Settings also has a button that does it for you.</span></li>
+        <li><span><b>Start a new session</b> in your agent. Sessions that were already open won't see Loupe.</span></li>
       </ol>
 
       <div class="tabs" role="tablist" aria-label="Agent to set up">
@@ -572,7 +572,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
 }</code></pre><button class="copy" type="button">Copy</button></div>
       </div>
       <div class="panel" data-panel="xcode" hidden>
-        <p>Xcode's built-in agents keep their own settings. Paste each line into Terminal.</p>
+        <p>Xcode's built-in agents keep their own settings, so they need their own lines. Paste each one into Terminal.</p>
         <div class="codebox"><pre><code>CLAUDE_CONFIG_DIR="$HOME/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig" claude mcp add --scope user loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
         <div class="codebox"><pre><code>CODEX_HOME="$HOME/Library/Developer/Xcode/CodingAssistant/codex" codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
       </div>
@@ -582,7 +582,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
       </div>
 
       <div class="after">
-        <p>Optional: a skill that teaches your agent the notes routine.</p>
+        <p>Optional: this installs a skill that teaches your agent how to work through Loupe notes.</p>
         <div class="codebox"><pre><code>npx skills add britchie4/Loupe</code></pre><button class="copy" type="button">Copy</button></div>
       </div>
     </div>
@@ -592,13 +592,13 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     <div class="wrap get">
       <img src="icon.svg" alt="Loupe app icon">
       <h2>Get Loupe</h2>
-      <p>Free and open source (MIT). macOS 14 or later.</p>
+      <p>Free and open source (MIT). Works on macOS 14 and later.</p>
       <div class="cta">
         <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download .dmg</a>
         <a class="btn ghost" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">Build from source</a>
       </div>
-      <p><strong>Permission.</strong> Loupe asks to read other apps on first launch. macOS 27 and later call this “Device Control and Data Access”. Earlier versions call it “Accessibility”.</p>
-      <p><strong>Updating.</strong> Version 1.2.1 and later update themselves: choose Check for Updates… from the menu bar icon, or right-click the toolbar. On an older version, quit Loupe, download the latest, and drag it to Applications. Your permission carries over.</p>
+      <p><strong>Permission.</strong> The first time you open Loupe, it asks for permission to read other apps. macOS 27 and later call this “Device Control and Data Access”, and earlier versions call it “Accessibility”.</p>
+      <p><strong>Updating.</strong> If you're on 1.2.1 or later, Loupe updates itself. Choose Check for Updates… from the menu bar icon, or right-click the toolbar. If you're on an older version, quit Loupe, download the latest one, and drag it to Applications. You won't have to grant the permission again.</p>
     </div>
   </section>
 </main>
@@ -674,9 +674,9 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   function guide() {
     var p = s.phase, ta = $('#note-text');
     if (p === 'closed') coach(floater, s.notes.length ? 'Click to open Loupe again.' : 'Start here. Click the Loupe button.');
-    else if (p === 'point') coach($('.pbtn', app) && !$('.pbtn', app).hidden ? $('.pbtn', app) : $('.noteable:not([hidden])', app), 'Loupe is on. Point at anything and click it. Try this button.');
-    else if (p === 'write') { if (ta && ta.value.trim()) coach($('#add'), 'Click Add to pin your note.'); else coach($('#sug'), 'Type what should change, or click this suggestion.'); }
-    else if (p === 'tell') coach($('#tell'), 'Your note is pinned. Now tell your agent.');
+    else if (p === 'point') coach($('.pbtn', app) && !$('.pbtn', app).hidden ? $('.pbtn', app) : $('.noteable:not([hidden])', app), 'Loupe is on. Click anything in the app, like this button.');
+    else if (p === 'write') { if (ta && ta.value.trim()) coach($('#add'), 'Click Add to pin your note.'); else coach($('#sug'), 'Write what you want changed, or click this suggestion.'); }
+    else if (p === 'tell') coach($('#tell'), 'Your note is in. Now tell your agent about it.');
     else if (p === 'question') coach($('.ft', pop), 'The agent asked a question. Pick an answer.');
     else coach(null);
   }
@@ -823,7 +823,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
       reply = n.ops.length === 1 && n.ops[0].say ? n.ops[0].say(el) : 'Made ' + (everywhere ? 'everything in the window' : label(el)) + ' ' + list(n.ops.map(function (o) { return o.word; })) + '.';
     } else {
       st = 'dismissed';
-      reply = 'This demo agent only knows a few changes: bigger, smaller, a color, bold, italic, rename, tick, remove. Your own agent works in your code, so it is not limited like this.';
+      reply = 'This pretend agent only knows a few changes: bigger, smaller, a color, bold, italic, rename, tick or remove. Your own agent works in your code, so it isn\u2019t limited like this.';
     }
     n.msgs.push({ who: 'Agent (simulated)', text: reply });
     setStatus(n, st); s.phase = 'done';
@@ -834,13 +834,13 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   function render() {
     var n = note(), has = s.notes.length > 0, p = s.phase, lines;
     var zero = p === 'closed' ? 'Click the Loupe button to open it' : 'Open Loupe';
-    var first = p === 'write' ? 'Say what should change, then click Add'
+    var first = p === 'write' ? 'Write what you want changed, then click Add'
       : p === 'point' ? 'Click something in the practice app'
       : 'Leave a note';
     var second = 'Tell the agent \u201C' + PHRASE + '\u201D';
-    var third = p === 'question' ? 'Answer the agent in the note'
-      : p === 'agent' ? 'Watch the practice app: the agent is on it'
-      : p === 'done' && n ? (n.status === 'dismissed' ? 'No change this time. Try another, or get Loupe' : 'It changed. Leave another note, or get Loupe')
+    var third = p === 'question' ? 'Answer the agent on the note'
+      : p === 'agent' ? 'The agent is working on it'
+      : p === 'done' && n ? (n.status === 'dismissed' ? 'It couldn\u2019t do that one. Try another, or get Loupe' : 'That worked. Leave another note, or get Loupe')
       : 'Watch the practice app change';
     var cur = p === 'closed' ? 0 : (p === 'point' || p === 'write') ? 1 : p === 'tell' ? 2 : 3;
     if (has && (p === 'closed' || p === 'point' || p === 'write')) { zero = 'Open Loupe'; }
@@ -868,7 +868,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     var el = {}; ['s-title', 's-row', 's-btn', 's-ring', 's-label', 's-badge', 's-note', 'n-pill', 'n-compose', 'n-typed', 'n-ph', 'n-add', 'n-thread', 'n-m2', 'n-m3', 'n-m4', 'n-field', 'n-ans', 'n-aph', 'n-sendb', 't-copy', 't-clear', 's-agent', 'a-say', 's-click', 's-cursor', 's-prog', 'show-cap'].forEach(function (id) { el[id] = document.getElementById(id); });
     var logLines = $$('#a-log div:not(.idle)'), idle = $('#a-idle');
     var NOTE = "Make this stand out. It's the main action.", ANS = 'Filled and prominent. Coral, please.', SAY = 'Check my Loupe notes';
-    var CAPS = [[0, 'Point at anything in your Mac app.'], [3.9, 'Say what should change.'], [7.1, 'The note is pinned to the button.'], [7.8, 'Tell your agent: “Check my Loupe notes”.'], [9.3, 'It asks before it guesses.'], [10.7, 'Answer right on the note.'], [13, 'Your agent changes the code.'], [15.9, 'Done. The badge turns green.'], [19, 'Point at it. Your agent fixes it.']];
+    var CAPS = [[0, 'Point at anything in your Mac app.'], [3.9, 'Write what you want changed.'], [7.1, 'Loupe pins the note to the button.'], [7.8, 'Tell your agent to check your Loupe notes.'], [9.3, 'If it isn\u2019t sure, it asks you on the note.'], [10.7, 'You answer right there.'], [13, 'Your agent makes the change in your code.'], [15.9, 'The badge turns green when it\u2019s done.'], [19, 'Then you point at the next thing.']];
     var LOG = [7.8, 8.9, 9.25, 13, 13.8, 15.9];
     var CLICKS = [3.9, 7.0, 9.6, 10.7, 12.5];
     var scale = 1, narrow = false;
