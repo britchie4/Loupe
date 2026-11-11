@@ -559,7 +559,7 @@ public enum PracticeCopy {
 
     public static let leaveAnotherNoteLabel = "Leave Another Note"
     public static let closingTitle = "You're ready"
-    public static let closingBody = "Your practice notes are gone. Real notes reach your agent in one of two ways."
+    public static let closingBody = "Real notes reach your agent in one of two ways."
 
     // Closing screen
     public static let copyTitle = "Copy and paste"
