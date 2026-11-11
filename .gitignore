@@ -78,6 +78,8 @@ docs/*
 !docs/CNAME
 !docs/demo.mp4
 !docs/demo-thumb.png
+# Brand guidelines travel with the project
+!docs/BRAND-GUIDELINES.md
 !docs/appcast.xml
 DEBUG_CLICK_EVENTS.md
 
