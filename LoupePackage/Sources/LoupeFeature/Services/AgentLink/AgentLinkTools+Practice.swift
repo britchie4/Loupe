@@ -7,8 +7,10 @@ import Foundation
 // reply_to_note, update_note), so the practice shows the real loop. The practice note is
 // never written to the AnnotationStore: these tools read and change a `PracticeSession`.
 //
-// The pretend app has no code behind it, so `change_practice_app` stands in for the edit
-// an agent would make in a real project. It can only restyle or remove the three practice elements.
+// The practice app is a small real page, so `edit_practice_app` is the edit an agent would
+// make in a real project: it reads the page's source and writes it back however the note
+// asks. Nothing limits what it can change. The page can't run scripts or load anything
+// from outside (see `PracticePage` and `PracticePageWebView`).
 extension AgentLinkTools {
 
     /// The app key agents see on the practice note
@@ -20,11 +22,11 @@ extension AgentLinkTools {
 
     /// The person is watching Loupe, not the agent's chat. An agent that only explains
     /// itself in its own chat leaves the practice looking stuck.
-    private static let answerInLoupe = "The user is watching Loupe, not this chat, so answer there. If the request is outside what change_practice_app can do, either make the closest change and say what you did in update_note, or decline with update_note status dismissed and one short sentence on why."
+    private static let answerInLoupe = "The user is watching Loupe, not this chat, so answer there: finish with update_note, and if you truly can't do what the note asks, decline with update_note status dismissed and one short sentence on why."
 
     static let practiceClosedMessage = "That practice note is finished or the practice was closed. Nothing more to do for it."
 
-    private static let practiceHowTo = "This note is from Loupe's built-in practice: a new user is trying Loupe on a pretend app inside Loupe. There is no code to edit. Make the requested change with change_practice_app, then call update_note with status done and one short sentence saying what you changed. \(answerInLoupe)"
+    private static let practiceHowTo = "This note is from Loupe's built-in practice: a new user is trying Loupe on a practice app inside Loupe. The practice app is a small HTML page whose source is in practiceApp.html, and the note's element.identifier is that element's id or data-loupe-key attribute. Make the requested change with edit_practice_app, then call update_note with status done and one short sentence saying what you changed. \(answerInLoupe)"
 
     // MARK: Finding the practice note
 
@@ -46,66 +48,61 @@ extension AgentLinkTools {
 
     // MARK: Tool
 
-    static func changePracticeApp(_ context: Context) -> AgentLinkTool {
-        let elements = PracticeElement.allCases.map(\.rawValue)
-        return AgentLinkTool(
-            name: "change_practice_app",
-            title: "Change Loupe's practice app",
-            description: "Only for Loupe's built-in practice, where a new user tries Loupe on a pretend app inside Loupe (notes whose app is \"Practice App\"). The pretend app has no code, so this tool stands in for editing it: call it to make the change a practice note asks for, then call update_note with status done and one short sentence saying what you changed. It can rename, resize, recolor, embolden, tick, and remove elements. Act right away with a sensible reading of the request; only ask a question (reply_to_note) if the request can't be understood. \(answerInLoupe) It cannot touch any real app or file.",
+    static func editPracticeApp(_ context: Context) -> AgentLinkTool {
+        AgentLinkTool(
+            name: "edit_practice_app",
+            title: "Edit Loupe's practice app",
+            description: "Only for Loupe's built-in practice, where a new user tries Loupe on a practice app inside Loupe (notes whose app is \"Practice App\"). \(PracticePage.howToEdit) Send the whole new page as html, or exact find-and-replace edits against the current source as edits. Act right away with a sensible reading of the request; only ask a question (reply_to_note) if the request can't be understood. Then call update_note with status done and one short sentence saying what you changed. \(answerInLoupe) It cannot touch any real app or file.",
             inputSchema: [
                 "type": "object",
                 "properties": [
-                    "element": [
-                        "type": "string",
-                        "enum": .array((elements + ["all"]).map { .string($0) }),
-                        "description": "Which practice element to change: the note's element.identifier, or all for every element.",
+                    "html": ["type": "string", "description": .string("The practice app's whole new page: the HTML that goes inside its body. At most \(PracticePage.maxLength) characters.")],
+                    "edits": [
+                        "type": "array",
+                        "description": "Changes to the current page instead of a whole new one, applied in order. Each find must match the current source exactly, and only its first match is replaced.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "find": ["type": "string"],
+                                "replace": ["type": "string"],
+                            ],
+                            "required": ["find", "replace"],
+                        ],
                     ],
-                    "text": ["type": "string", "description": .string("New words for the element, at most \(PracticeChange.maxTextLength) characters. Not allowed with element all.")],
-                    "size": ["type": "string", "enum": .array(PracticeSize.allCases.map { .string($0.rawValue) })],
-                    "color": ["type": "string", "enum": .array(PracticeColor.allCases.map { .string($0.rawValue) })],
-                    "bold": ["type": "boolean"],
-                    "checked": ["type": "boolean", "description": "Tick or untick the checkbox. Only the reminder element has one."],
-                    "removed": ["type": "boolean", "description": "true takes the element out of the practice app, for requests to delete, remove or hide it. false puts it back."],
                 ],
-                "required": ["element"],
             ],
             readOnly: false
         ) { args in
             guard let practice = context.openPractice, practice.model.hasOpenNote else {
                 return .failure("Loupe's practice has no open note right now. This tool only works during the practice.")
             }
-            guard let name = args["element"]?.stringValue else { return .failure("element is required.") }
-            let targets: [PracticeElement]
-            if name == "all" {
-                targets = PracticeElement.allCases
-            } else if let element = PracticeElement(rawValue: name) {
-                targets = [element]
+
+            var page: String
+            if let html = args["html"]?.stringValue {
+                guard args["edits"] == nil else { return .failure("Pass html or edits, not both.") }
+                page = html
+            } else if case .array(let edits)? = args["edits"], !edits.isEmpty {
+                page = practice.currentPageHTML
+                for edit in edits {
+                    guard let find = edit["find"]?.stringValue, !find.isEmpty, let replace = edit["replace"]?.stringValue else {
+                        return .failure("Each edit needs find and replace.")
+                    }
+                    guard let range = page.range(of: find) else {
+                        return .failure("This text is not in the practice app's page, so nothing was changed: \(find.prefix(120)). The page's current source is in the note's practiceApp.html.")
+                    }
+                    page.replaceSubrange(range, with: replace)
+                }
             } else {
-                return .failure("element must be one of \(elements.joined(separator: ", ")), or all.")
+                return .failure("Pass html (the whole new page) or edits (find-and-replace changes).")
             }
 
-            var change = PracticeChange()
-            if let text = args["text"]?.stringValue {
-                guard targets.count == 1 else { return .failure("text can only be set on one element at a time.") }
-                guard let cleaned = PracticeChange.cleanedText(text) else { return .failure("text can't be empty.") }
-                change.text = cleaned
+            guard page.trimmingCharacters(in: .whitespacesAndNewlines).count <= PracticePage.maxLength else {
+                return .failure("The page is too long. Keep it under \(PracticePage.maxLength) characters.")
             }
-            if let size = args["size"]?.stringValue {
-                guard let value = PracticeSize(rawValue: size) else { return .failure("size must be one of \(PracticeSize.allCases.map(\.rawValue).joined(separator: ", ")).") }
-                change.size = value
+            guard PracticePage.cleaned(page) != nil else {
+                return .failure("Nothing would be left of the practice app's page. Send its new HTML.")
             }
-            if let color = args["color"]?.stringValue {
-                guard let value = PracticeColor(rawValue: color) else { return .failure("color must be one of \(PracticeColor.allCases.map(\.rawValue).joined(separator: ", ")).") }
-                change.color = value
-            }
-            change.bold = args["bold"]?.boolValue
-            if let checked = args["checked"]?.boolValue {
-                guard targets.contains(.reminder) else { return .failure("Only the reminder element has a checkbox.") }
-                change.checked = checked
-            }
-            change.removed = args["removed"]?.boolValue
-            guard !change.isEmpty else { return .failure("Pass at least one of text, size, color, bold, checked, or removed.") }
-            guard practice.agentChanged(targets, change) else { return .failure(practiceClosedMessage) }
+            guard practice.agentRewrotePage(page) else { return .failure(practiceClosedMessage) }
 
             return AgentLinkToolResult([
                 "practiceApp": practiceAppJSON(practice),
@@ -123,7 +120,7 @@ extension AgentLinkTools {
         case .done:
             guard practice.model.hasOpenNote else { return .failure(practiceClosedMessage) }
             guard practice.model.appWasChanged else {
-                return .failure("Nothing in the practice app has changed yet. Make the change with change_practice_app first, then mark the note done.")
+                return .failure("Nothing in the practice app has changed yet. Make the change with edit_practice_app first, then mark the note done.")
             }
             guard practice.agentFinished(message: message, dismissed: false) else { return .failure(practiceClosedMessage) }
         case .dismissed:
@@ -167,22 +164,9 @@ extension AgentLinkTools {
         ]
     }
 
-    /// How every element of the practice app looks right now
+    /// The practice app's page as it is right now
     static func practiceAppJSON(_ practice: PracticeSession) -> JSONValue {
-        .array(PracticeElement.allCases.map { element in
-            let look = practice.model.look(of: element)
-            var json: [String: JSONValue] = [
-                "element": .string(element.rawValue),
-                "role": .string(element.role),
-                "text": .string(look.text),
-                "size": .string(look.size.rawValue),
-                "color": .string(look.color.rawValue),
-                "bold": .bool(look.bold),
-                "removed": .bool(look.removed),
-            ]
-            if element == .reminder { json["checked"] = .bool(look.checked) }
-            return .object(json)
-        })
+        ["html": .string(practice.currentPageHTML)]
     }
 }
 

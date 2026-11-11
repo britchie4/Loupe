@@ -28,7 +28,7 @@ enum AgentLinkTools {
             replyToNote(context),
             inspectElement(context),
             findElements(context),
-            changePracticeApp(context),
+            editPracticeApp(context),
         ]
     }
 

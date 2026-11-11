@@ -23,6 +23,10 @@ public final class PracticeSession {
     /// How agents refer to the current practice note
     @ObservationIgnored public private(set) var noteID = UUID()
 
+    /// The practice app's page as it is on screen, with the pretend agent's changes in it.
+    /// The page reports this after each change. Nil until it has.
+    @ObservationIgnored private var renderedHTML: String?
+
     @ObservationIgnored private var agentTask: Task<Void, Never>?
     @ObservationIgnored private var quietTask: Task<Void, Never>?
 
@@ -73,7 +77,20 @@ public final class PracticeSession {
         agentTask = nil
         quietTask?.cancel()
         quietTask = nil
+        renderedHTML = nil
         model = PracticeModel()
+    }
+
+    // MARK: The practice app's page
+
+    /// The page told us what its source is now
+    public func pageWasRendered(_ html: String) {
+        renderedHTML = html
+    }
+
+    /// The page's source to hand to a connected agent: what is on screen right now
+    public var currentPageHTML: String {
+        renderedHTML ?? model.pageHTML
     }
 
     // MARK: For connected agents (called by Agent Link's tools)
@@ -106,6 +123,16 @@ public final class PracticeSession {
     @discardableResult
     public func agentChanged(_ elements: [PracticeElement], _ change: PracticeChange) -> Bool {
         guard model.isLive, model.agentChanged(elements, change) else { return false }
+        waitForAgent()
+        return true
+    }
+
+    /// The connected agent rewrote the practice app's page
+    @discardableResult
+    public func agentRewrotePage(_ html: String) -> Bool {
+        guard model.isLive, model.agentRewrotePage(html) else { return false }
+        // What the agent wrote is the page now, even before it has been drawn
+        renderedHTML = model.pageHTML
         waitForAgent()
         return true
     }

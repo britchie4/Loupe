@@ -187,43 +187,47 @@ private struct PracticeChecklistView: View {
 
 // MARK: - Stage: the practice app with Loupe's outline, badge and note window over it
 
-/// Where each practice element sits, so the outline, badge and note window can be placed on it
-private struct PracticeFrameKey: PreferenceKey {
-    static var defaultValue: [PracticeElement: Anchor<CGRect>] { [:] }
-
-    static func reduce(value: inout [PracticeElement: Anchor<CGRect>], nextValue: () -> [PracticeElement: Anchor<CGRect>]) {
-        value.merge(nextValue()) { _, new in new }
-    }
-}
-
 private struct PracticeStageView: View {
     let session: PracticeSession
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// What the practice app's page says about itself: what is under the pointer and
+    /// where the noted elements are
+    @State private var page = PracticePageState()
 
     private let noteWidth: CGFloat = 340
 
     var body: some View {
-        PracticeAppView(session: session)
-            .overlayPreferenceValue(PracticeFrameKey.self) { anchors in
+        PracticeAppView(session: session, page: page)
+            .overlay(alignment: .topLeading) {
                 GeometryReader { proxy in
+                    // The page reports places measured from its own top-left corner,
+                    // which sits just under the practice app's title bar
+                    let origin = CGPoint(x: 0, y: PracticeAppView.pageTop)
                     ZStack(alignment: .topLeading) {
-                        if let element = session.model.outlinedElement, let anchor = anchors[element] {
-                            outline(for: element, frame: proxy[anchor], stageWidth: proxy.size.width)
+                        if let element = session.model.outlinedElement, let frame = outlineFrame(for: element) {
+                            outline(for: element, frame: frame.offsetBy(dx: origin.x, dy: origin.y), stageWidth: proxy.size.width)
                         }
                         // Earlier notes keep their badges while another note is left
-                        ForEach(PracticeElement.allCases, id: \.self) { element in
-                            if let badge = session.model.badges[element], let anchor = anchors[element] {
-                                badgeView(badge, frame: proxy[anchor])
+                        ForEach(Array(session.model.badges.keys), id: \.id) { element in
+                            if let badge = session.model.badges[element], let frame = page.frames[element.id] {
+                                badgeView(badge, frame: frame.offsetBy(dx: origin.x, dy: origin.y))
                             }
                         }
-                        if let element = session.model.selected, let anchor = anchors[element] {
-                            noteLayer(for: element, frame: proxy[anchor], stageSize: proxy.size)
+                        if let element = session.model.selected, let frame = page.frames[element.id] {
+                            noteLayer(for: element, frame: frame.offsetBy(dx: origin.x, dy: origin.y), stageSize: proxy.size)
                         }
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
                 }
             }
+    }
+
+    /// Where to draw the outline: around what is under the pointer, or around the element
+    /// a note is being written on
+    private func outlineFrame(for element: PracticeElement) -> CGRect? {
+        if session.model.stage == .writingNote { return page.frames[element.id] }
+        return page.hover?.frame
     }
 
     /// Loupe's hover outline, and the small name label that follows it while pointing
@@ -240,9 +244,9 @@ private struct PracticeStageView: View {
             let label = ElementLabelView(role: element.role, title: element.title, identifier: nil)
                 .fixedSize()
             Group {
-                if element == .heading {
-                    // Nothing else is on the heading's line, so its label sits beside it
-                    // instead of covering the row underneath
+                if frame.maxX + 180 < stageWidth, frame.width > stageWidth * 0.25 {
+                    // Room beside it on its own line (the heading): sit there instead of
+                    // covering the row underneath
                     label
                         .frame(height: frame.height, alignment: .center)
                         .offset(x: frame.maxX + 12, y: frame.minY)
@@ -276,7 +280,7 @@ private struct PracticeStageView: View {
         if session.model.isNoteOpen {
             // Below the element, like the real note window, and kept inside the stage
             let x = min(max(frame.midX - noteWidth / 2, 6), stageSize.width - noteWidth - 6)
-            let y = frame.maxY + 12
+            let y = min(frame.maxY + 12, stageSize.height - 190)
             PracticeNoteWindow(
                 session: session,
                 element: element,
@@ -293,17 +297,21 @@ private struct PracticeStageView: View {
 
 // MARK: - The practice app
 
-/// A small pretend app window with three things to point at
+/// A small pretend app window. Its content is a real page (`PracticePageWebView`), so an
+/// agent can change anything about it and a person can point at anything on it.
 private struct PracticeAppView: View {
     let session: PracticeSession
+    let page: PracticePageState
 
-    @FocusState private var focused: PracticeElement?
+    static let titleBarHeight: CGFloat = 30
+    /// Where the page starts, measured from the top of the practice app
+    static let pageTop: CGFloat = titleBarHeight + 1
 
     var body: some View {
         VStack(spacing: 0) {
             titleBar
             Divider()
-            content
+            PracticePageWebView(session: session, page: page)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(nsColor: .textBackgroundColor))
@@ -313,13 +321,6 @@ private struct PracticeAppView: View {
                 .stroke(Color.primary.opacity(0.14), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.14), radius: 12, y: 5)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Practice app")
-        // Keyboard focus counts as pointing, so the outline follows Tab as well as the mouse
-        .onChange(of: focused) { old, new in
-            if let old { session.unhover(old) }
-            if let new { session.hover(new) }
-        }
     }
 
     private var titleBar: some View {
@@ -337,118 +338,9 @@ private struct PracticeAppView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
-        .frame(height: 30)
+        .frame(height: Self.titleBarHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityHidden(true)
-    }
-
-    private var content: some View {
-        let heading = session.model.look(of: .heading)
-        let reminder = session.model.look(of: .reminder)
-        let save = session.model.look(of: .saveButton)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            target(.heading) {
-                Text(heading.text)
-                    .font(.system(size: 17 * heading.size.scale, weight: heading.bold ? .black : .bold))
-                    .foregroundStyle(heading.color.textColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-            }
-
-            HStack(spacing: 8) {
-                target(.reminder) {
-                    HStack(spacing: 6 * reminder.size.scale) {
-                        PracticeCheckbox(isOn: reminder.checked, color: reminder.color, side: 14 * reminder.size.scale)
-                        Text(reminder.text)
-                            .font(.system(size: 13 * reminder.size.scale, weight: reminder.bold ? .bold : .regular))
-                            .foregroundStyle(reminder.color.textColor)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                    }
-                }
-                Spacer(minLength: 8)
-                target(.saveButton, padded: false) {
-                    Text(save.text)
-                        .font(.system(size: 13 * save.size.scale, weight: save.bold ? .bold : .medium))
-                        .foregroundStyle(save.color == .standard ? Color.primary : save.color.onFill)
-                        .lineLimit(1)
-                        .padding(.horizontal, 14 * save.size.scale)
-                        .padding(.vertical, 5 * save.size.scale)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6 * save.size.scale, style: .continuous)
-                                .fill(save.color == .standard ? Color.primary.opacity(0.08) : save.color.fill)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6 * save.size.scale, style: .continuous)
-                                .stroke(Color.primary.opacity(0.18), lineWidth: 1)
-                        )
-                        .fixedSize()
-                }
-            }
-
-            placeholderRows
-                .padding(.top, 6)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-    }
-
-    /// Grey bars standing in for the rest of the app. Not something to point at.
-    private var placeholderRows: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach([0.78, 0.62, 0.7, 0.5, 0.74, 0.58], id: \.self) { width in
-                HStack(spacing: 10) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.primary.opacity(0.07))
-                        .frame(width: 34, height: 34)
-                    VStack(alignment: .leading, spacing: 7) {
-                        Capsule()
-                            .fill(Color.primary.opacity(0.1))
-                            .frame(width: 300 * width, height: 8)
-                        Capsule()
-                            .fill(Color.primary.opacity(0.06))
-                            .frame(width: 220 * width, height: 8)
-                    }
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// One thing in the practice app that can be pointed at and clicked
-    private func target(
-        _ element: PracticeElement,
-        padded: Bool = true,
-        @ViewBuilder label: () -> some View
-    ) -> some View {
-        Button {
-            session.select(element)
-        } label: {
-            label()
-                .foregroundStyle(.primary)
-                .padding(.horizontal, padded ? 4 : 0)
-                .padding(.vertical, padded ? 2 : 0)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focused($focused, equals: element)
-        .focusEffectDisabled()
-        .onHover { inside in
-            if inside { session.hover(element) } else { session.unhover(element) }
-        }
-        .anchorPreference(key: PracticeFrameKey.self, value: .bounds) { [element: $0] }
-        .allowsHitTesting(session.model.canPickElement && !isRemoved(element))
-        .accessibilityLabel(element.accessibilityLabel(showing: session.model.look(of: element).text))
-        .accessibilityHint("Opens a practice note on this element")
-        // A removed element keeps its place, so nothing else jumps and its badge stays put
-        .opacity(isRemoved(element) ? 0 : 1)
-        .scaleEffect(isRemoved(element) ? 0.85 : 1)
-        .accessibilityHidden(isRemoved(element))
-    }
-
-    private func isRemoved(_ element: PracticeElement) -> Bool {
-        session.model.look(of: element).removed
     }
 }
 
@@ -510,61 +402,6 @@ private struct PracticeBadgeView: View {
         .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
         .accessibilityElement()
         .accessibilityLabel(label)
-    }
-}
-
-/// The practice app's checkbox: an empty box, or a filled one with a tick
-private struct PracticeCheckbox: View {
-    let isOn: Bool
-    let color: PracticeColor
-    let side: CGFloat
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: side * 0.25, style: .continuous)
-        ZStack {
-            if isOn {
-                shape.fill(color == .standard ? Color.primary.opacity(0.85) : color.fill)
-                Image(systemName: "checkmark")
-                    .font(.system(size: side * 0.62, weight: .heavy))
-                    .foregroundStyle(color == .standard ? Color(nsColor: .textBackgroundColor) : color.onFill)
-            } else {
-                shape.stroke(color == .standard ? Color.secondary : color.textColor, lineWidth: 1.2)
-            }
-        }
-        .frame(width: side, height: side)
-    }
-}
-
-/// The colors the practice app can be given, readable in light and dark
-private extension PracticeColor {
-    private var hexes: (fill: Int, lightText: Int, darkText: Int, darkOnFill: Bool) {
-        switch self {
-        case .standard: (0x5F6672, 0x1D1D1F, 0xF5F5F7, false)
-        case .red: (0xC62828, 0xC62828, 0xFF6B6B, false)
-        case .orange: (0xB45309, 0xB45309, 0xFF9F45, false)
-        case .yellow: (0xF2C200, 0x8A6D00, 0xFFD60A, true)
-        case .green: (0x1B7A34, 0x1B7A34, 0x4CD964, false)
-        case .blue: (0x1D5FD0, 0x1D5FD0, 0x5AA9FF, false)
-        case .purple: (0x6D3FC4, 0x6D3FC4, 0xB69CFF, false)
-        case .pink: (0xC2185B, 0xC2185B, 0xFF7AB2, false)
-        case .gray: (0x5F6672, 0x5F6672, 0xA8AFBA, false)
-        }
-    }
-
-    /// Behind a button's words, or inside a ticked checkbox
-    var fill: Color { Color(practiceHex: hexes.fill) }
-
-    /// Words drawn on top of `fill`
-    var onFill: Color { hexes.darkOnFill ? Color(practiceHex: 0x1D1D1F) : .white }
-
-    /// Words drawn straight on the practice app's background
-    var textColor: Color {
-        guard self != .standard else { return .primary }
-        let (light, dark) = (hexes.lightText, hexes.darkText)
-        return Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua]) != nil
-            return NSColor(practiceHex: isDark ? dark : light)
-        })
     }
 }
 

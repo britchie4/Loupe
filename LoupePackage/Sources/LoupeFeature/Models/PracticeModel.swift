@@ -12,31 +12,38 @@ import Foundation
 
 // MARK: - What can be pointed at
 
-/// The things a person can point at in the practice app
-public enum PracticeElement: String, CaseIterable, Identifiable, Sendable {
-    case heading
-    case reminder
-    case saveButton
-
-    public var id: String { rawValue }
-
+/// Something a person can point at in the practice app. The practice app is a small real
+/// page, so this can be anything on it: the three things it starts with, or whatever an
+/// agent has added since.
+public struct PracticeElement: Hashable, Identifiable, Sendable {
+    /// How the element is found on the page: its `id` attribute, or the `data-loupe-key`
+    /// Loupe gave it when it was first picked
+    public let id: String
     /// The accessibility role a real app would report, so names match the rest of Loupe
-    public var role: String {
-        switch self {
-        case .heading: "AXHeading"
-        case .reminder: "AXCheckBox"
-        case .saveButton: "AXButton"
-        }
+    public let role: String
+    /// The words on the element when it was pointed at
+    public let title: String
+
+    public init(id: String, role: String, title: String) {
+        self.id = id
+        self.role = role
+        self.title = title
     }
 
-    /// The words on the element when the practice starts
-    public var title: String {
-        switch self {
-        case .heading: "Weekend Planner"
-        case .reminder: "Remind me on Friday"
-        case .saveButton: "Save Plan"
-        }
-    }
+    /// The three things the practice app starts with
+    public static let heading = PracticeElement(id: "heading", role: "AXHeading", title: "Weekend Planner")
+    public static let reminder = PracticeElement(id: "reminder", role: "AXCheckBox", title: "Remind me on Friday")
+    public static let saveButton = PracticeElement(id: "saveButton", role: "AXButton", title: "Save Plan")
+    public static let allCases: [PracticeElement] = [.heading, .reminder, .saveButton]
+
+    public var rawValue: String { id }
+
+    // Two values name the same element when they point at the same place on the page,
+    // even if its words have changed since
+    public static func == (lhs: PracticeElement, rhs: PracticeElement) -> Bool { lhs.id == rhs.id }
+    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
+    public var isCheckbox: Bool { role == "AXCheckBox" }
 
     /// First line of the note window's header, e.g. "Button in Practice App"
     public var kindLine: String {
@@ -45,7 +52,7 @@ public enum PracticeElement: String, CaseIterable, Identifiable, Sendable {
 
     /// Second line of the note window's header: the words on the element, in quotes
     public var nameLine: String {
-        "\u{201C}\(title)\u{201D}"
+        title.isEmpty ? ElementKind.name(forRole: role) : "\u{201C}\(title)\u{201D}"
     }
 
     /// What VoiceOver reads for the element, with the words it shows right now
@@ -55,20 +62,21 @@ public enum PracticeElement: String, CaseIterable, Identifiable, Sendable {
 
     /// A note that fits this element, offered as a one-click suggestion
     public var suggestedNote: String {
-        switch self {
-        case .heading: "Make this title blue"
-        case .reminder: "Tick this by default"
-        case .saveButton: "Make this button bigger"
+        switch role {
+        case "AXHeading": "Make this title blue"
+        case "AXCheckBox": "Tick this by default"
+        case "AXButton": "Make this button bigger"
+        default: "Make this bigger"
         }
     }
 
     /// What the suggested note asks for. Also what the pretend agent falls back to
     /// when it can't make sense of a note.
     public var suggestedChange: PracticeChange {
-        switch self {
-        case .heading: PracticeChange(color: .blue)
-        case .reminder: PracticeChange(checked: true)
-        case .saveButton: PracticeChange(size: .bigger)
+        switch role {
+        case "AXHeading": PracticeChange(color: .blue)
+        case "AXCheckBox": PracticeChange(checked: true)
+        default: PracticeChange(size: .bigger)
         }
     }
 }
@@ -97,7 +105,9 @@ public enum PracticeColor: String, CaseIterable, Sendable {
     case red, orange, yellow, green, blue, purple, pink, gray
 }
 
-/// How one element of the practice app looks right now
+/// What the pretend agent has done to one element of the practice app. It only knows a
+/// few tricks, so its changes are kept as this short list and laid over the page.
+/// (A connected agent is not limited to these: it rewrites the page itself.)
 public struct PracticeLook: Equatable, Sendable {
     public var text: String
     public var size: PracticeSize = .normal
@@ -214,7 +224,9 @@ public struct PracticeModel: Equatable, Sendable {
     /// The element the note is attached to
     public private(set) var selected: PracticeElement?
     public private(set) var messages: [PracticeMessage] = []
-    /// How each element of the practice app looks right now
+    /// The practice app's page, as HTML: what it starts as, or what a connected agent last wrote
+    public private(set) var pageHTML = PracticePage.startingHTML
+    /// The pretend agent's changes, laid over the page (see `PracticeLook`)
     public private(set) var looks: [PracticeElement: PracticeLook]
 
     /// The connected agent handling the note, by name. Nil when the pretend agent plays the part.
@@ -400,10 +412,23 @@ public struct PracticeModel: Equatable, Sendable {
             if let size = change.size { look.size = size }
             if let color = change.color { look.color = color }
             if let bold = change.bold { look.bold = bold }
-            if let checked = change.checked, element == .reminder { look.checked = checked }
+            if let checked = change.checked, element.isCheckbox { look.checked = checked }
             if let removed = change.removed { look.removed = removed }
             looks[element] = look
         }
+        appWasChanged = true
+        offersPretendAgent = false
+        return true
+    }
+
+    /// A connected agent rewrote the practice app's page. Anything HTML and CSS can say is
+    /// allowed (see `PracticePage.cleaned`). The pretend agent's earlier changes are already
+    /// part of what the agent was shown, so they are not laid over the new page again.
+    @discardableResult
+    public mutating func agentRewrotePage(_ html: String) -> Bool {
+        guard hasOpenNote, let html = PracticePage.cleaned(html) else { return false }
+        pageHTML = html
+        looks = [:]
         appWasChanged = true
         offersPretendAgent = false
         return true
@@ -600,7 +625,7 @@ public enum PracticeInterpreter {
 
         // "Delete this" is one of the first things people try. Taking the tick off a
         // checkbox is not removing the checkbox.
-        let aboutTheTick = element == .reminder && has("remove the tick", "remove the check", "remove the checkmark", "remove tick", "remove check")
+        let aboutTheTick = element.isCheckbox && has("remove the tick", "remove the check", "remove the checkmark", "remove tick", "remove check")
         if !aboutTheTick, has("delete", "remove", "hide", "get rid", "take out", "take away", "take this out", "drop", "lose", "gone") {
             return Reading(change: PracticeChange(removed: true), understood: true)
         }
@@ -622,7 +647,7 @@ public enum PracticeInterpreter {
             change.bold = true
         }
 
-        if element == .reminder {
+        if element.isCheckbox {
             if aboutTheTick || has("uncheck", "unchecked", "untick", "unticked", "turn off", "off by default", "disable", "disabled", "deselect") {
                 change.checked = false
             } else if has("check", "checked", "tick", "ticked", "turn on", "on by default", "enable", "enabled", "select", "selected") {

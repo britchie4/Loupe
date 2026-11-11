@@ -116,7 +116,7 @@ struct AgentLinkToolsTests {
         })
         #expect(readOnly == [
             "get_status": true, "list_notes": true, "get_note": true, "inspect_element": true, "find_elements": true,
-            "update_note": false, "reply_to_note": false, "change_practice_app": false,
+            "update_note": false, "reply_to_note": false, "edit_practice_app": false,
         ])
     }
 }

@@ -48,7 +48,7 @@ struct PracticeAgentToolsTests {
         // No app selected and no practice: the usual answer
         #expect(try call("list_notes").isError)
         #expect(try call("get_status").result["practice"] == nil)
-        #expect(try call("change_practice_app", ["element": "saveButton", "size": "bigger"]).isError)
+        #expect(try call("edit_practice_app", ["html": "<p>Hello</p>"]).isError)
     }
 
     @Test func aScriptedPracticeIsInvisibleToAgents() throws {
@@ -58,8 +58,8 @@ struct PracticeAgentToolsTests {
 
         #expect(try call("list_notes").isError)
         #expect(try call("get_note", ["id": noteID]).isError)
-        #expect(try call("change_practice_app", ["element": "saveButton", "size": "bigger"]).isError)
-        #expect(practice.model.look(of: .saveButton).size == .normal)
+        #expect(try call("edit_practice_app", ["html": "<p>Hello</p>"]).isError)
+        #expect(practice.model.pageHTML == PracticePage.startingHTML)
     }
 
     @Test func checkingNotesFindsThePracticeNote() throws {
@@ -77,7 +77,9 @@ struct PracticeAgentToolsTests {
         #expect(note["status"] == "pending")
         #expect(note["app"]?["bundleIdentifier"]?.stringValue == AgentLinkTools.practiceAppKey)
         #expect(note["element"]?["identifier"] == "saveButton")
-        #expect(note["practice"]?.stringValue?.contains("change_practice_app") == true)
+        #expect(note["practice"]?.stringValue?.contains("edit_practice_app") == true)
+        // The note carries the practice app's page, so the agent can see what it is changing
+        #expect(note["practiceApp"]?["html"]?.stringValue == PracticePage.startingHTML)
         // Listing it tells the person their agent picked it up
         #expect(practice.model.agentHasRead)
 
@@ -98,56 +100,90 @@ struct PracticeAgentToolsTests {
 
     // MARK: Doing the work
 
-    @Test func anAgentChangesThePracticeAppThenMarksTheNoteDone() throws {
-        leaveLiveNote()
+    @Test func anAgentEditsThePageThenMarksTheNoteDone() throws {
+        leaveLiveNote("make the letters italic")
 
         // Done before any change is refused, with a pointer to the right tool
         let early = try call("update_note", ["id": noteID, "status": "done", "message": "Done"])
         #expect(early.isError)
-        #expect(early.result["error"]?.stringValue?.contains("change_practice_app") == true)
+        #expect(early.result["error"]?.stringValue?.contains("edit_practice_app") == true)
         #expect(practice.model.stage == .noteAdded)
 
         #expect(!(try call("update_note", ["id": noteID, "status": "seen"]).isError))
         #expect(practice.model.status?.label == "Agent working")
 
-        let changed = try call("change_practice_app", ["element": "saveButton", "size": "much_bigger", "color": "blue", "text": "Save Trip"])
+        // Italic was the request the old fixed list of changes could not do
+        let italic = "<button id=\"saveButton\" style=\"font-style: italic\">Save Plan</button>"
+        let changed = try call("edit_practice_app", ["edits": [["find": "<button id=\"saveButton\">Save Plan</button>", "replace": .string(italic)]]])
         #expect(!changed.isError)
-        #expect(practice.model.look(of: .saveButton) == PracticeLook(text: "Save Trip", size: .muchBigger, color: .blue))
+        #expect(practice.model.pageHTML.contains(italic))
+        #expect(practice.model.pageHTML.contains("<h1 id=\"heading\">Weekend Planner</h1>"))
+        #expect(changed.result["practiceApp"]?["html"]?.stringValue == practice.model.pageHTML)
 
-        let done = try call("update_note", ["id": noteID, "status": "done", "message": "Made the button bigger and blue."])
+        let done = try call("update_note", ["id": noteID, "status": "done", "message": "Made the button's letters italic."])
         #expect(!done.isError)
         #expect(done.result["note"]?["status"] == "done")
         #expect(practice.model.stage == .done)
         #expect(practice.model.badge == .done)
-        #expect(practice.model.messages.last?.text == "Made the button bigger and blue.")
+        #expect(practice.model.messages.last?.text == "Made the button's letters italic.")
 
         // The finished note can still be read, but not worked on
         #expect(!(try call("get_note", ["id": noteID]).isError))
-        #expect(try call("change_practice_app", ["element": "heading", "bold": true]).isError)
+        #expect(try call("edit_practice_app", ["html": "<p>Later</p>"]).isError)
         #expect(store.annotations.isEmpty)
     }
 
-    @Test func allChangesEveryElementButNotTheirWords() throws {
-        leaveLiveNote("make everything green")
-        #expect(!(try call("change_practice_app", ["element": "all", "color": "green", "checked": true]).isError))
-        for element in PracticeElement.allCases {
-            #expect(practice.model.look(of: element).color == .green)
-        }
-        #expect(practice.model.look(of: .reminder).checked)
-        #expect(try call("change_practice_app", ["element": "all", "text": "Same"]).isError)
-        #expect(practice.model.look(of: .heading).text == "Weekend Planner")
+    /// Nothing limits what the page can become: new things, moved things, a different page
+    @Test func anAgentCanRewriteTheWholePage() throws {
+        leaveLiveNote("add a cancel button and a subtitle")
+        let page = """
+        <h1 id="heading">Weekend Planner</h1>
+        <p class="subtitle" style="opacity: .7">Two days, no plans yet</p>
+        <div class="row"><button id="cancel">Cancel</button><button id="saveButton">Save Plan</button></div>
+        """
+        #expect(!(try call("edit_practice_app", ["html": .string(page)])).isError)
+        #expect(practice.model.pageHTML == page)
+        #expect(practice.model.appWasChanged)
     }
 
-    @Test func badChangesAreRefusedWithAReason() throws {
+    /// The page can't run code or load anything, and what is kept says so
+    @Test func scriptsAndOutsideContentAreDropped() throws {
         leaveLiveNote()
-        #expect(try call("change_practice_app", [:]).isError)
-        #expect(try call("change_practice_app", ["element": "toolbar", "bold": true]).isError)
-        #expect(try call("change_practice_app", ["element": "saveButton"]).isError)
-        #expect(try call("change_practice_app", ["element": "saveButton", "size": "gigantic"]).isError)
-        #expect(try call("change_practice_app", ["element": "saveButton", "color": "teal"]).isError)
-        #expect(try call("change_practice_app", ["element": "saveButton", "checked": true]).isError)
-        #expect(try call("change_practice_app", ["element": "saveButton", "text": "   "]).isError)
+        let page = "<h1 id=\"heading\">Hi</h1><script>alert(1)</script><iframe src=\"https://example.com\"></iframe><link rel=\"stylesheet\" href=\"https://example.com/a.css\"><p>Kept</p>"
+        #expect(!(try call("edit_practice_app", ["html": .string(page)])).isError)
+        #expect(practice.model.pageHTML == "<h1 id=\"heading\">Hi</h1><p>Kept</p>")
+    }
+
+    @Test func badEditsAreRefusedWithAReason() throws {
+        leaveLiveNote()
+        #expect(try call("edit_practice_app", [:]).isError)
+        #expect(try call("edit_practice_app", ["html": "   "]).isError)
+        #expect(try call("edit_practice_app", ["html": "<script>only()</script>"]).isError)
+        #expect(try call("edit_practice_app", ["html": "<p>a</p>", "edits": [["find": "a", "replace": "b"]]]).isError)
+        #expect(try call("edit_practice_app", ["edits": [["find": "", "replace": "b"]]]).isError)
+        #expect(try call("edit_practice_app", ["html": .string(String(repeating: "<p>long</p>", count: 4000))]).isError)
+        // Text that isn't on the page changes nothing, and says where to look
+        let missing = try call("edit_practice_app", ["edits": [["find": "<button>Nope</button>", "replace": "<b>x</b>"]]])
+        #expect(missing.isError)
+        #expect(missing.result["error"]?.stringValue?.contains("practiceApp.html") == true)
         #expect(!practice.model.appWasChanged)
+        #expect(practice.model.pageHTML == PracticePage.startingHTML)
+    }
+
+    /// What the practice agent changed earlier is part of the page a real agent is shown,
+    /// so its edit builds on what the person sees
+    @Test func theAgentSeesThePageAsItIsOnScreen() throws {
+        leaveLiveNote()
+        let onScreen = PracticePage.startingHTML.replacingOccurrences(of: "<h1 id=\"heading\">", with: "<h1 id=\"heading\" style=\"color: var(--loupe-blue)\">")
+        practice.pageWasRendered(onScreen)
+
+        let note = try #require(notes(try call("list_notes").result).first)
+        #expect(note["practiceApp"]?["html"]?.stringValue == onScreen)
+
+        // An edit is made against that page, and from then on the agent's page is the page
+        #expect(!(try call("edit_practice_app", ["edits": [["find": "Weekend Planner", "replace": "Holiday Planner"]]])).isError)
+        #expect(practice.model.pageHTML.contains("style=\"color: var(--loupe-blue)\">Holiday Planner"))
+        #expect(practice.currentPageHTML == practice.model.pageHTML)
     }
 
     @Test func anAgentsQuestionAndThePersonsAnswerGoThroughThePracticeNote() throws {
@@ -171,24 +207,15 @@ struct PracticeAgentToolsTests {
     }
 
     /// "Delete this button" was the first note tried with a real agent, and it stalled
-    @Test func anAgentCanRemoveAnElementAndPutItBack() throws {
+    @Test func anAgentCanDeleteAnElement() throws {
         leaveLiveNote("delete this button")
         _ = try call("list_notes")
 
-        let removed = try call("change_practice_app", ["element": "saveButton", "removed": true])
+        let removed = try call("edit_practice_app", ["edits": [["find": "<button id=\"saveButton\">Save Plan</button>", "replace": ""]]])
         #expect(!removed.isError)
-        #expect(practice.model.look(of: .saveButton).removed)
-        #expect(!practice.model.look(of: .heading).removed)
-        if case .array(let app)? = removed.result["practiceApp"] {
-            #expect(app.first { $0["element"]?.stringValue == "saveButton" }?["removed"]?.boolValue == true)
-        } else {
-            Issue.record("The reply should describe the practice app")
-        }
+        #expect(!practice.model.pageHTML.contains("saveButton"))
+        #expect(practice.model.pageHTML.contains("id=\"reminder\""))
 
-        #expect(!(try call("change_practice_app", ["element": "saveButton", "removed": false])).isError)
-        #expect(!practice.model.look(of: .saveButton).removed)
-
-        _ = try call("change_practice_app", ["element": "saveButton", "removed": true])
         #expect(!(try call("update_note", ["id": noteID, "status": "done", "message": "Removed the button."])).isError)
         #expect(practice.model.stage == .done)
         #expect(store.annotations.isEmpty)
@@ -223,7 +250,7 @@ struct PracticeAgentToolsTests {
         leaveLiveNote("Make this button bigger")
         let firstID = noteID
         _ = try call("list_notes")
-        _ = try call("change_practice_app", ["element": "saveButton", "size": "bigger"])
+        _ = try call("edit_practice_app", ["edits": [["find": "<button id=\"saveButton\">", "replace": "<button id=\"saveButton\" style=\"font-size: 20px\">"]]])
         _ = try call("update_note", ["id": firstID, "status": "done", "message": "Bigger."])
         #expect(practice.model.stage == .done)
 
@@ -242,12 +269,12 @@ struct PracticeAgentToolsTests {
         // The first note is closed for good, and the new one needs its own change before "done"
         #expect(try call("get_note", ["id": firstID]).isError)
         #expect(try call("update_note", ["id": noteID, "status": "done", "message": "Done."]).isError)
-        _ = try call("change_practice_app", ["element": "heading", "color": "green"])
+        _ = try call("edit_practice_app", ["edits": [["find": "<h1 id=\"heading\">", "replace": "<h1 id=\"heading\" style=\"color: green\">"]]])
         #expect(!(try call("update_note", ["id": noteID, "status": "done", "message": "Green now."])).isError)
 
         // Both changes are still there
-        #expect(practice.model.look(of: .saveButton).size == .bigger)
-        #expect(practice.model.look(of: .heading).color == .green)
+        #expect(practice.model.pageHTML.contains("style=\"font-size: 20px\""))
+        #expect(practice.model.pageHTML.contains("style=\"color: green\""))
         #expect(practice.model.badges == [.saveButton: .done, .heading: .done])
         #expect(store.annotations.isEmpty)
     }
