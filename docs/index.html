@@ -12,6 +12,7 @@
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap" rel="stylesheet">
 <style>
 /* Layout: a left-aligned headline over a small Mac desktop you can point at, then short plain sections. */
@@ -83,11 +84,72 @@ section h2{margin-bottom:24px}
 .cta small{color:var(--muted);font-size:14px}
 
 /* checklist, mirrors the practice in Loupe's setup */
-.film{margin:0;display:grid;gap:12px}
-.film video{display:block;width:100%;max-width:820px;aspect-ratio:8/7;background:#000;border-radius:16px;box-shadow:var(--shadow)}
-.film figcaption{display:grid;gap:2px;max-width:820px}
-.film #film-cap{font:700 20px/1.3 var(--display);min-height:1.3em}
-.film small{font-size:14px;color:var(--muted)}
+/* hero animation: a 1000 x 640 scene scaled to fit, driven from one clock */
+.show{margin:0;display:grid;gap:14px}
+.scene{position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,#ffcdbb 0%,#f5e8d9 48%,#d2e0f7 100%);box-shadow:var(--shadow);border:1px solid var(--line);aspect-ratio:1000/640;color:#1d1d1f;font-family:var(--body)}
+.scene.narrow{aspect-ratio:600/640}
+.cam{position:absolute;left:0;top:0;width:1000px;height:640px;transform-origin:0 0}
+.scene *{box-sizing:border-box}
+.s-win{position:absolute;left:70px;top:44px;width:470px;height:404px;background:#fff;border-radius:14px;box-shadow:0 30px 60px -22px rgba(60,30,20,.45),0 0 0 1px rgba(0,0,0,.08)}
+.s-bar{height:34px;display:flex;align-items:center;gap:8px;padding:0 13px;font-size:13px;font-weight:600;color:#6e6e73;border-bottom:1px solid #ececec}
+.s-bar i{width:12px;height:12px;border-radius:50%;background:#dcdcdc}
+.s-bar i:nth-child(1){background:#ff5f57}.s-bar i:nth-child(2){background:#febc2e}.s-bar i:nth-child(3){background:#dcdcdc}
+.s-bar span{margin-left:8px}
+.s-body{padding:22px 26px}
+.s-h{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:38px;width:max-content}
+.s-rows{margin-top:10px}
+.s-row{display:flex;align-items:center;gap:14px;height:52px;border-bottom:1px solid #e6e6e6}
+.s-row svg{width:22px;height:22px;stroke:#8a8a8e;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s-row b{display:block;font-size:15px;font-weight:500;line-height:19px}
+.s-row small{display:block;font-size:12px;color:#8a8a8e;line-height:15px}
+.s-foot{position:absolute;left:26px;right:26px;bottom:20px;height:34px;display:flex;align-items:center;justify-content:space-between;font-size:14px}
+.s-chk{display:flex;align-items:center;gap:8px}
+.s-chk i{width:15px;height:15px;border-radius:4px;background:#e9e9eb;box-shadow:inset 0 0 0 1px #d0d0d4}
+.s-btn{font-size:14px;font-weight:500;background:#ececee;border-radius:7px;height:26px;padding:0 12px;display:flex;align-items:center;color:#1d1d1f;box-shadow:0 0 0 .5px rgba(0,0,0,.12)}
+.glass{background:rgba(58,56,58,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);color:#fff;box-shadow:0 24px 50px -16px rgba(30,15,10,.6),inset 0 0 0 1px rgba(255,255,255,.12)}
+.s-tool{position:absolute;left:150px;top:478px;height:52px;border-radius:16px;display:flex;align-items:center;gap:16px;padding:0 16px;font-size:10px;color:rgba(255,255,255,.85)}
+.s-tool .app{width:26px;height:26px;border-radius:7px;background:#e8f1f8;box-shadow:0 0 0 1.5px rgba(255,255,255,.7)}
+.s-tool div{display:grid;justify-items:center;gap:3px}
+.s-tool svg{width:17px;height:17px;stroke:#fff;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.s-tool .sep{width:1px;height:24px;background:rgba(255,255,255,.2)}
+.s-ring{position:absolute;border:2.5px solid #ff5b3a;border-radius:9px;box-shadow:0 0 0 4px rgba(255,91,58,.22);opacity:0;pointer-events:none}
+.s-label{position:absolute;background:rgba(40,38,40,.92);color:#fff;font-size:12px;font-weight:600;padding:4px 9px;border-radius:8px;white-space:nowrap;opacity:0}
+.s-badge{position:absolute;left:503px;top:367px;width:22px;height:22px;border-radius:50%;background:#e8452a;color:#fff;font-size:12.5px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px #fff,0 3px 8px rgba(0,0,0,.3);opacity:0}
+.s-note{position:absolute;left:532px;top:292px;width:336px;border-radius:16px;font-size:13px;opacity:0;transform-origin:0 0;transition:top .3s cubic-bezier(.2,.8,.2,1)}
+.n-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px 10px;border-bottom:1px solid rgba(255,255,255,.12)}
+.n-hd small{display:block;font-size:11px;color:rgba(255,255,255,.6)}
+.n-hd b{font-size:14px}
+.n-pill{font-size:10.5px;font-weight:700;border-radius:8px;padding:3px 8px;white-space:nowrap}
+.n-pill.wait{background:rgba(255,91,58,.25);color:#ff9a84}
+.n-pill.q{background:rgba(90,150,255,.28);color:#9cc3ff}
+.n-pill.done{background:rgba(60,207,142,.25);color:#7be3b3}
+.n-body{padding:10px 14px 4px;display:grid;gap:8px}
+.n-who{font-size:10.5px;color:rgba(255,255,255,.6);font-weight:600;margin-bottom:3px}
+.n-msg{border-radius:9px;padding:7px 10px;line-height:17px;background:rgba(255,91,58,.3);box-shadow:inset 0 0 0 1px rgba(255,120,90,.45)}
+.n-msg.ag{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.n-area{margin:12px 14px 0;height:58px;border-radius:9px;background:rgba(0,0,0,.35);padding:8px 10px;line-height:17px}
+.n-area .ph,.n-field .ph{color:rgba(255,255,255,.45)}
+.n-ft{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px 12px}
+.n-b{font-size:13px;font-weight:600;border-radius:7px;padding:5px 12px;background:rgba(255,255,255,.14);color:rgba(255,255,255,.5)}
+.n-b.cancel{color:#ff7a5c;background:rgba(255,91,58,.14)}
+.n-b.go{background:#e8452a;color:#fff}
+.n-send{display:flex;gap:8px;padding:8px 14px 12px;border-top:1px solid rgba(255,255,255,.1);margin-top:8px}
+.n-field{flex:1;height:30px;border-radius:8px;background:rgba(0,0,0,.35);padding:0 10px;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.s-agent{position:absolute;left:588px;top:44px;width:342px;height:188px;border-radius:14px;background:#17191e;color:#e9e6e0;box-shadow:0 30px 60px -22px rgba(20,15,30,.6);font:12.5px/1.5 var(--mono);opacity:0}
+.s-agent .s-bar{border-color:#000;color:#8d897f;background:#23262d;border-radius:14px 14px 0 0}
+.s-agent .s-bar i{background:#454a55 !important}
+.a-log{padding:10px 14px;display:grid;gap:3px;position:relative}
+.a-log .idle{position:absolute;left:14px;top:10px;color:#8d897f}
+.a-log div{opacity:0;white-space:nowrap}
+.a-log .you{color:#ff9a84}
+.a-log .ok{color:#7be3b3}
+.s-cursor{position:absolute;left:0;top:0;width:22px;height:30px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));will-change:transform}
+.s-click{position:absolute;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2px solid rgba(255,91,58,.9);opacity:0;pointer-events:none}
+.s-bar2{position:absolute;left:0;bottom:0;height:4px;background:#ff5b3a;width:0}
+.show figcaption{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between}
+.show #show-cap{font:700 clamp(18px,2.4vw,24px)/1.3 var(--display);min-height:1.3em}
+.show .ctl{display:flex;gap:14px;align-items:center;font-size:14px;color:var(--muted)}
+.show .ctl button{font:600 14px/1 var(--body);color:var(--ink);background:transparent;border:0;box-shadow:inset 0 0 0 1px var(--line);border-radius:9px;padding:8px 12px;cursor:pointer}
 .demo{padding-block:64px 56px}
 .demo h2{margin-bottom:6px}
 .demo .sim{font-size:15px;color:var(--muted);margin-bottom:14px}
@@ -244,11 +306,74 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   </div>
 
   <div class="wrap">
-    <figure class="film">
-      <video id="film" src="demo.mp4" poster="demo-thumb.png" muted playsinline loop autoplay controls preload="metadata" aria-describedby="film-cap"></video>
+    <figure class="show" id="show">
+      <div class="scene" id="scene" role="img" aria-label="Animation: pointing at the Save Plan button in a Mac app with Loupe, leaving a note, the coding agent asking a question, then changing the button and marking the note done.">
+        <div class="cam" id="cam" aria-hidden="true">
+          <div class="s-win">
+            <div class="s-bar"><i></i><i></i><i></i><span>Weekend Planner</span></div>
+            <div class="s-body">
+              <div class="s-h" id="s-title">Weekend Planner</div>
+              <div class="s-rows">
+                <div class="s-row"><svg viewBox="0 0 24 24"><path d="M4 10h16l-2 9H6zM8 10l3-5M16 10l-3-5"/></svg><div><b>Farmers market</b><small>Saturday</small></div></div>
+                <div class="s-row"><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 2-2 7 0 9v9"/></svg><div><b>Lunch with Sam</b><small>Saturday</small></div></div>
+                <div class="s-row"><svg viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="1.8"/><path d="M12 9l-3 3 1 3M12 9l3 3 3 1M12 9l-1 6-3 6M11 15l4 2 1 4"/></svg><div id="s-row"><b>Hike the ridge trail</b><small>Sunday</small></div></div>
+                <div class="s-row"><svg viewBox="0 0 24 24"><path d="M7 9l1.5 12h7L17 9zM7 9a2.5 2.5 0 0 1 2-4 3 3 0 0 1 6 0 2.5 2.5 0 0 1 2 4"/></svg><div><b>Movie night</b><small>Sunday</small></div></div>
+              </div>
+            </div>
+            <div class="s-foot"><span class="s-chk"><i></i>Remind me on Friday</span><span class="s-btn" id="s-btn">Save Plan</span></div>
+          </div>
+
+          <div class="s-agent" id="s-agent">
+            <div class="s-bar"><i></i><i></i><i></i><span>Your coding agent</span></div>
+            <div class="a-log" id="a-log">
+              <div class="idle" id="a-idle">Waiting for notes</div>
+              <div class="you">&gt; <span id="a-say"></span></div>
+              <div>Read note 1: Button “Save Plan”</div>
+              <div>Asked a question on the note</div>
+              <div>Got your answer</div>
+              <div>Edited PlannerView.swift, rebuilt</div>
+              <div class="ok">✓ Marked note 1 done</div>
+            </div>
+          </div>
+
+          <div class="s-tool glass">
+            <span class="app"></span><span class="sep"></span>
+            <div><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>Copy</div>
+            <div><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>Clear</div>
+            <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>Settings</div>
+            <span class="sep"></span>
+            <div><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Exit</div>
+          </div>
+
+          <div class="s-ring" id="s-ring"></div>
+          <div class="s-label" id="s-label"></div>
+          <div class="s-badge" id="s-badge">1</div>
+
+          <div class="s-note glass" id="s-note">
+            <div class="n-hd"><div><small>Button in Weekend Planner</small><b>“Save Plan”</b></div><span class="n-pill wait" id="n-pill">Waiting</span></div>
+            <div id="n-compose">
+              <div class="n-area"><span id="n-typed"></span><span class="ph" id="n-ph">What should change?</span></div>
+              <div class="n-ft"><span class="n-b cancel">Cancel</span><span class="n-b" id="n-add">Add</span></div>
+            </div>
+            <div id="n-thread">
+              <div class="n-body">
+                <div><div class="n-who">You</div><div class="n-msg">Make this stand out. It's the main action.</div></div>
+                <div id="n-m2"><div class="n-who">Agent</div><div class="n-msg ag">Happy to. Should I make it the filled, prominent style, or just larger?</div></div>
+                <div id="n-m3"><div class="n-who">You</div><div class="n-msg">Filled and prominent. Coral, please.</div></div>
+                <div id="n-m4"><div class="n-who">Agent</div><div class="n-msg ag">Done. Save Plan is now the filled coral style and one size larger.</div></div>
+              </div>
+              <div class="n-send"><div class="n-field" id="n-field"><span id="n-ans"></span><span class="ph" id="n-aph">Answer the agent</span></div><span class="n-b" id="n-sendb">Send</span></div>
+            </div>
+          </div>
+
+          <div class="s-click" id="s-click"></div>
+          <svg class="s-cursor" id="s-cursor" viewBox="0 0 22 30"><path d="M2 2v22l5.5-5 3.6 8.4 3.4-1.5-3.6-8.2H19z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="s-bar2" id="s-prog"></div>
+      </div>
       <figcaption>
-        <span id="film-cap" aria-live="off">A real Mac app, running.</span>
-        <small>Real captures of Loupe 2.0 on a sample app, with Claude Code as the agent. Steps are cut together.</small>
+        <span id="show-cap">Point at anything in your Mac app.</span>
+        <span class="ctl"><span>An animation of how Loupe works.</span><button type="button" id="show-toggle" aria-pressed="false">Pause</button></span>
       </figcaption>
     </figure>
   </div>
@@ -620,12 +745,138 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   window.addEventListener('resize', function () { placePins(); hoverlabel.hidden = true; if (!pop.hidden) { var n = s.open || (s.phase === 'write' ? null : note()); placePop(s.phase === 'write' && s.target ? s.target : (n ? n.el : app)); } });
   start();
 
-  /* captions follow the film; each scene lasts 2.2 seconds */
+  /* hero animation. One clock (Motion when it loads, a plain frame loop otherwise) and a render(t) that draws the scene for any moment t. */
   (function () {
-    var v = $('#film'), cap = $('#film-cap');
-    var CAPS = ['A real Mac app, running.', 'Point. Loupe highlights what is under your pointer.', 'Click to leave a note.', 'Say what should change.', 'The note is pinned to the button.', 'Your agent reads it and asks a question.', 'Answer right on the note.', 'The agent takes it from there.', 'It changes the code. The badge turns green.', 'Open the note to see what changed.'];
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
-    v.addEventListener('timeupdate', function () { var t = CAPS[Math.min(CAPS.length - 1, Math.floor(v.currentTime / 2.2))]; if (cap.textContent !== t) cap.textContent = t; });
+    var D = 23, scene = $('#scene'), cam = $('#cam');
+    var el = {}; ['s-title', 's-row', 's-btn', 's-ring', 's-label', 's-badge', 's-note', 'n-pill', 'n-compose', 'n-typed', 'n-ph', 'n-add', 'n-thread', 'n-m2', 'n-m3', 'n-m4', 'n-field', 'n-ans', 'n-aph', 'n-sendb', 's-agent', 'a-say', 's-click', 's-cursor', 's-prog', 'show-cap'].forEach(function (id) { el[id] = document.getElementById(id); });
+    var logLines = $$('#a-log div:not(.idle)'), idle = $('#a-idle');
+    var NOTE = "Make this stand out. It's the main action.", ANS = 'Filled and prominent. Coral, please.', SAY = 'Check my Loupe notes';
+    var CAPS = [[0, 'Point at anything in your Mac app.'], [3.9, 'Say what should change.'], [7.1, 'The note is pinned to the button.'], [7.8, 'Tell your agent: “Check my Loupe notes”.'], [9.3, 'It asks before it guesses.'], [10.7, 'Answer right on the note.'], [13, 'Your agent changes the code.'], [15.9, 'Done. The badge turns green.'], [19, 'Point at it. Your agent fixes it.']];
+    var LOG = [7.8, 8.9, 9.25, 13, 13.8, 15.9];
+    var CLICKS = [3.9, 7.0, 9.6, 10.7, 12.5];
+    var scale = 1, narrow = false;
+
+    function cl(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function pr(t, a, b) { return cl((t - a) / (b - a)); }
+    function io(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+    function out(x) { return 1 - Math.pow(1 - x, 3); }
+    function box(n) { var c = cam.getBoundingClientRect(), r = n.getBoundingClientRect(); return { x: (r.left - c.left) / scale, y: (r.top - c.top) / scale, w: r.width / scale, h: r.height / scale }; }
+    function mid(n, fx, fy) { var b = box(n); return [b.x + b.w * (fx == null ? 0.5 : fx), b.y + b.h * (fy == null ? 0.5 : fy)]; }
+
+    /* pointer path: [start, end, target]. It rests between moves. */
+    var PATH = [
+      [0.2, 1.0, function () { return mid(el['s-title'], 0.45, 0.55); }],
+      [1.75, 2.3, function () { return mid(el['s-row'], 0.4, 0.5); }],
+      [2.85, 3.5, function () { return mid(el['s-btn'], 0.8, 0.75); }],
+      [6.5, 6.95, function () { return mid(el['n-add']); }],
+      [7.2, 7.8, function () { return [700, 560]; }],
+      [9.0, 9.5, function () { return [514, 379]; }],
+      [10.1, 10.65, function () { return mid(el['n-field'], 0.3, 0.5); }],
+      [12.2, 12.48, function () { return mid(el['n-sendb']); }],
+      [12.8, 13.4, function () { return [730, 610]; }],
+      [18.6, 19.4, function () { return [640, 360]; }]
+    ];
+    function pointer(t) {
+      var pos = [900, 610];
+      for (var i = 0; i < PATH.length; i++) {
+        var s = PATH[i];
+        if (t >= s[1]) { pos = s[2](); continue; }
+        if (t > s[0]) { var to = s[2](), k = io(pr(t, s[0], s[1])); pos = [pos[0] + (to[0] - pos[0]) * k, pos[1] + (to[1] - pos[1]) * k]; }
+        break;
+      }
+      return pos;
+    }
+    function show(n, on) { var v = on ? '' : 'none'; if (n.style.display !== v) n.style.display = v; }
+    function text(n, s) { if (n.textContent !== s) n.textContent = s; }
+
+    function render(t) {
+      t = ((t % D) + D) % D;
+      var fade = t > D - 0.6 ? 1 - pr(t, D - 0.6, D - 0.1) : pr(t, 0, 0.4);
+      cam.style.opacity = fade;
+
+      /* the button's change, then everything measured from it */
+      var grown = out(pr(t, 15.0, 15.6)), b = el['s-btn'];
+      b.style.background = grown > 0 ? 'rgb(' + Math.round(236 + (255 - 236) * grown) + ',' + Math.round(236 + (91 - 236) * grown) + ',' + Math.round(238 + (58 - 238) * grown) + ')' : '';
+      b.style.color = grown > 0.5 ? '#fff' : '';
+      b.style.height = (26 + 6 * grown) + 'px'; b.style.padding = '0 ' + (12 + 5 * grown) + 'px'; b.style.fontWeight = grown > 0.5 ? '600' : '';
+      b.style.boxShadow = grown > 0.5 ? '0 6px 14px -6px rgba(255,91,58,.8)' : '';
+
+      /* highlight ring and its label */
+      var target = null, label = '', op = 0;
+      if (t >= 1.0 && t < 1.8) { target = el['s-title']; label = 'Heading “Weekend Planner”'; op = Math.min(pr(t, 1.0, 1.12), 1 - pr(t, 1.7, 1.8)); }
+      else if (t >= 2.3 && t < 2.9) { target = el['s-row']; label = 'Text “Hike the ridge trail”'; op = Math.min(pr(t, 2.3, 2.42), 1 - pr(t, 2.8, 2.9)); }
+      else if (t >= 3.5 && t < 7.1) { target = b; label = 'Button “Save Plan”'; op = Math.min(pr(t, 3.5, 3.62), 1 - pr(t, 7.0, 7.1)); }
+      var ring = el['s-ring'], lab = el['s-label'];
+      ring.style.opacity = op; lab.style.opacity = t < 3.9 ? op : 0;
+      if (target) { var r = box(target); ring.style.left = (r.x - 6) + 'px'; ring.style.top = (r.y - 5) + 'px'; ring.style.width = (r.w + 12) + 'px'; ring.style.height = (r.h + 10) + 'px'; text(lab, label); lab.style.left = (r.x - 6) + 'px'; lab.style.top = (r.y + r.h + 12) + 'px'; }
+
+      /* badge */
+      var bd = el['s-badge'], bb = box(b), state = t < 9.3 ? 0 : t < 12.6 ? 1 : t < 15.9 ? 0 : 2;
+      var popAt = state === 2 ? 15.9 : state === 1 ? 9.3 : 7.05, k = out(pr(t, popAt, popAt + 0.3));
+      bd.style.opacity = t >= 7.05 ? 1 : 0; bd.style.left = (bb.x + bb.w - 11) + 'px'; bd.style.top = (bb.y - 11) + 'px';
+      bd.style.transform = 'scale(' + (t >= 7.05 ? 0.5 + 0.5 * k + 0.25 * Math.sin(Math.PI * k) : 0.5) + ')';
+      bd.style.background = state === 2 ? '#22a56c' : state === 1 ? '#3f7df0' : '#e8452a';
+      text(bd, state === 2 ? '✓' : state === 1 ? '?' : '1');
+
+      /* note window: composer, then the thread */
+      var composing = t >= 3.95 && t < 7.05, thread = t >= 9.65 && t < 18.7, note = el['s-note'];
+      var nk = composing ? Math.min(out(pr(t, 3.95, 4.2)), 1 - pr(t, 6.98, 7.05)) : thread ? Math.min(out(pr(t, 9.65, 9.9)), 1 - pr(t, 18.5, 18.7)) : 0;
+      note.style.opacity = nk; note.style.transform = 'scale(' + (0.94 + 0.06 * nk) + ')';
+      show(el['n-compose'], !thread); show(el['n-thread'], thread);
+      var typed = NOTE.slice(0, Math.round(NOTE.length * pr(t, 4.5, 6.3)));
+      text(el['n-typed'], typed); show(el['n-ph'], !typed); el['n-add'].className = 'n-b' + (typed ? ' go' : '');
+      var ans = t < 12.5 ? ANS.slice(0, Math.round(ANS.length * pr(t, 10.9, 12.1))) : '';
+      text(el['n-ans'], ans); show(el['n-aph'], !ans); text(el['n-aph'], t < 12.5 ? 'Answer the agent' : t < 15.9 ? 'Add more detail' : 'Add a follow-up to reopen');
+      el['n-sendb'].className = 'n-b' + (ans ? ' go' : '');
+      show(el['n-m3'], t >= 12.5); show(el['n-m4'], t >= 16.1);
+      var pill = el['n-pill'];
+      if (!thread || t >= 12.5 && t < 15.9) { pill.className = 'n-pill wait'; text(pill, 'Waiting'); }
+      else if (t < 12.5) { pill.className = 'n-pill q'; text(pill, 'Question for you'); }
+      else { pill.className = 'n-pill done'; text(pill, 'Done'); }
+      show(pill, thread);
+      note.style.top = Math.min(292, 640 - 22 - note.offsetHeight) + 'px';
+
+      /* the agent's side */
+      el['s-agent'].style.opacity = 1; idle.style.opacity = 1 - pr(t, 7.6, 7.8);
+      text(el['a-say'], SAY.slice(0, Math.round(SAY.length * pr(t, 7.9, 8.7))));
+      for (var i = 0; i < logLines.length; i++) logLines[i].style.opacity = pr(t, LOG[i], LOG[i] + 0.25);
+
+      /* pointer and clicks */
+      var p = pointer(t); el['s-cursor'].style.transform = 'translate(' + (p[0] - 2) + 'px,' + (p[1] - 2) + 'px)';
+      var ck = el['s-click'], c = 0, cp = 0;
+      for (var j = 0; j < CLICKS.length; j++) if (t >= CLICKS[j] && t < CLICKS[j] + 0.4) { cp = pr(t, CLICKS[j], CLICKS[j] + 0.4); c = 1 - cp; }
+      ck.style.opacity = c; ck.style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px) scale(' + (0.4 + cp) + ')';
+
+      /* camera: on narrow screens follow the action instead of shrinking everything */
+      var cx = narrow ? 330 * io(pr(t, 3.5, 4.6)) : 0;
+      cam.style.transform = 'scale(' + scale + ') translateX(' + (-cx) + 'px)';
+
+      var cap = CAPS[0][1]; for (var q = 0; q < CAPS.length; q++) if (t >= CAPS[q][0]) cap = CAPS[q][1];
+      text(el['show-cap'], cap);
+      el['s-prog'].style.width = (100 * t / D) + '%';
+    }
+
+    function fit() { var w = scene.clientWidth; narrow = w < 560; scene.classList.toggle('narrow', narrow); scale = w / (narrow ? 600 : 1000); render(now); }
+    var now = 0, ctl = null, paused = false, visible = true, last = 0, raf = 0;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function onTime(v) { now = v; render(v); }
+    function loop(ts) { if (last) now = (now + (ts - last) / 1000) % D; last = ts; render(now); raf = requestAnimationFrame(loop); }
+    function run() {
+      if (paused || !visible) return;
+      if (window.Motion && Motion.animate && !ctl) { try { ctl = Motion.animate(0, D, { duration: D, ease: 'linear', repeat: Infinity, onUpdate: onTime }); } catch (e) { ctl = null; } }
+      if (ctl) ctl.play(); else if (!raf) { last = 0; raf = requestAnimationFrame(loop); }
+    }
+    function halt() { if (ctl) ctl.pause(); if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+    var toggle = $('#show-toggle');
+    function setPaused(v) { paused = v; toggle.textContent = v ? 'Play' : 'Pause'; toggle.setAttribute('aria-pressed', v ? 'true' : 'false'); if (v) halt(); else run(); }
+    toggle.addEventListener('click', function () { setPaused(!paused); });
+    window.addEventListener('resize', fit);
+    if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible) run(); else halt(); }, { threshold: 0.05 }).observe(scene);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) halt(); else run(); });
+    window.loupeShow = { seek: function (v) { now = v; if (ctl) ctl.time = v; render(v); }, pause: function () { setPaused(true); } };
+    if (reduce) { now = 17.2; paused = true; toggle.textContent = 'Play'; toggle.setAttribute('aria-pressed', 'true'); }
+    fit();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
   })();
 
   /* GitHub star count: live from GitHub, and the button stands on its own if it cannot load */
