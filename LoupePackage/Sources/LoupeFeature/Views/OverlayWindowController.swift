@@ -448,16 +448,18 @@ public final class OverlayWindowController: NSWindowController {
     /// Update cached annotation badge positions in local coordinates
     private func updateAnnotationBadges() {
         let currentWindowFrame = inspector.getTargetWindowFrame()
-        overlayState.annotationBadges = annotationStore.annotations.compactMap { annotation in
+        let placed: [(annotation: Annotation, elementFrame: CGRect, corner: CGPoint)] = annotationStore.annotations.compactMap { annotation in
             let elementFrame = annotation.elementFrame(currentWindowFrame: currentWindowFrame)
             guard let localFrame = convertAXFrameToLocal(elementFrame) else { return nil }
 
-            // Position badge at top-right corner of the element
-            let badgePosition = CGPoint(
-                x: localFrame.maxX - 10,
-                y: localFrame.minY + 10
-            )
+            // Each badge starts at the top-right corner of its element
+            return (annotation, elementFrame, CGPoint(x: localFrame.maxX - 10, y: localFrame.minY + 10))
+        }
+        // Notes on the same element would all land on that one corner, hiding all but one
+        let positions = Self.spreadBadgePositions(placed.map(\.corner))
 
+        overlayState.annotationBadges = zip(placed, positions).map { item, badgePosition in
+            let (annotation, elementFrame, _) = item
             return AnnotationBadge(
                 id: annotation.id,
                 number: annotation.badgeNumber,
@@ -469,6 +471,29 @@ public final class OverlayWindowController: NSWindowController {
                 elementFrameAX: elementFrame
             )
         }
+    }
+
+    /// Give every badge its own spot when several notes share an element. Badges arrive oldest
+    /// first; the newest keeps the element's corner and older ones step to the left, so each
+    /// number stays visible and opens its own note.
+    /// - Parameters:
+    ///   - corners: Where each badge would sit by itself, in overlay-local coordinates
+    ///   - spacing: Distance between neighbouring badges (a little less than a badge's width)
+    nonisolated static func spreadBadgePositions(_ corners: [CGPoint], spacing: CGFloat = 16) -> [CGPoint] {
+        var result = corners
+        var grouped = Set<Int>()
+        for first in corners.indices where !grouped.contains(first) {
+            let group = corners.indices.filter { index in
+                index >= first && !grouped.contains(index)
+                    && abs(corners[index].x - corners[first].x) < 2
+                    && abs(corners[index].y - corners[first].y) < 2
+            }
+            grouped.formUnion(group)
+            for (order, index) in group.enumerated() {
+                result[index].x = corners[first].x - CGFloat(group.count - 1 - order) * spacing
+            }
+        }
+        return result
     }
 
     // MARK: - Mouse Handling
@@ -573,7 +598,8 @@ public final class OverlayWindowController: NSWindowController {
         overlayState.hoveredBadgeIndex = nil
 
         if let localPoint = localLocation {
-            for (index, badge) in overlayState.annotationBadges.enumerated() {
+            // Later badges are drawn on top, so where two overlap the top one wins
+            for (index, badge) in overlayState.annotationBadges.enumerated().reversed() {
                 if badge.hitTestRect.contains(localPoint) {
                     overlayState.hoveredBadgeIndex = index
                     break

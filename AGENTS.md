@@ -28,7 +28,7 @@ Choose verification for the affected behavior. Documentation-only changes do not
 
 - Build: `xcodebuild -workspace Loupe.xcworkspace -scheme Loupe -configuration Debug build`
 - Test (unit + UI): `xcodebuild -workspace Loupe.xcworkspace -scheme Loupe -configuration Debug test`
-- Package unit tests only: `xcodebuild -workspace Loupe.xcworkspace -scheme LoupeFeature test`
+- Package unit tests only: `swift test --package-path LoupePackage`
 - UI tests only: `xcodebuild -workspace Loupe.xcworkspace -scheme Loupe -only-testing:LoupeUITests test`
 - Clean build (only when asked, per the working agreements): `xcodebuild -workspace Loupe.xcworkspace -scheme Loupe clean`
 - For visible or interaction changes, verify the running app with the relevant Accessibility permission state and on the affected display arrangement.
