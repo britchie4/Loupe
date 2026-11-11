@@ -209,8 +209,23 @@ section h2{margin-bottom:24px}
 .pin.question{background:var(--q)}
 .pin.done{background:var(--done)}
 .pin.dismissed{background:#8a8f98}
-.floater{position:absolute;right:16px;bottom:14px;width:44px;height:44px;border-radius:50%;background:var(--menubar);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);display:grid;place-items:center;box-shadow:0 6px 16px -6px rgba(0,0,0,.4)}
-.floater img{width:30px;height:30px;display:block}
+.floater{position:absolute;right:16px;bottom:14px;z-index:5;width:44px;height:44px;border-radius:50%;padding:0;cursor:pointer;background:rgba(255,255,255,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.7);display:grid;place-items:center;box-shadow:0 8px 18px -8px rgba(0,0,0,.45)}
+.floater svg{width:34px;height:30px;display:block}
+.ptool{position:absolute;right:16px;bottom:14px;z-index:5;height:52px;border-radius:16px;display:flex;align-items:center;gap:8px;padding:8px}
+.desk>.mac:not(.term){grid-column:1;grid-row:1}
+.desk>.term{grid-column:2;grid-row:1 / span 2}
+.desk>.floater,.desk>.ptool{position:static;grid-column:1;grid-row:2;justify-self:end;align-self:start}
+.ptool button.t-btn{background:none;border:0;font-family:inherit;cursor:pointer;padding:0}
+.ptool button.t-btn:hover{color:#fff}
+.coach-ring{position:absolute;z-index:8;pointer-events:none;border:2px solid var(--coral);border-radius:12px;animation:coachPulse 1.5s ease-out infinite}
+@keyframes coachPulse{0%{box-shadow:0 0 0 0 rgba(255,91,58,.6)}100%{box-shadow:0 0 0 14px rgba(255,91,58,0)}}
+.coach-tip{position:absolute;z-index:8;pointer-events:none;background:var(--ink);color:var(--paper);font:600 13.5px/1.35 var(--body);padding:8px 12px;border-radius:10px;max-width:230px;box-shadow:0 10px 24px -10px rgba(0,0,0,.6)}
+.coach-tip::after{content:"";position:absolute;left:var(--ax,20px);width:10px;height:10px;background:var(--ink);transform:rotate(45deg);margin-left:-5px}
+.coach-tip.above::after{bottom:-5px}
+.coach-tip.below::after{top:-5px}
+.log .prompt{grid-template-columns:minmax(0,1fr);margin-top:2px}
+.log .prompt button{font:600 13px/1 var(--body);background:var(--coral);color:var(--on-coral);border:0;border-radius:8px;padding:9px 12px;cursor:pointer;justify-self:start}
+@media (prefers-reduced-motion: reduce){.coach-ring{animation:none;box-shadow:0 0 0 4px rgba(255,91,58,.3)}}
 
 /* note window */
 .pop{position:absolute;z-index:6;width:min(330px,calc(100% - 16px));background:var(--pop);border:1px solid var(--win-line);border-radius:14px;box-shadow:0 22px 44px -14px rgba(0,0,0,.55);font-size:14px;display:grid}
@@ -249,7 +264,9 @@ section h2{margin-bottom:24px}
 .demo-foot button{font:inherit;color:var(--coral-text);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 @media (max-width:760px){
   .desk{grid-template-columns:minmax(0,1fr);padding:42px 12px 70px}
-  .term{margin-top:0}
+  .desk>.term{margin-top:0;order:3;grid-column:auto;grid-row:auto}
+  .desk>.mac:not(.term){order:1;grid-column:auto;grid-row:auto}
+  .desk>.floater,.desk>.ptool{order:2;grid-column:auto;grid-row:auto}
   .menubar .hide-s{display:none}
   .app{padding:18px 16px 20px}
 }
@@ -428,7 +445,16 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
 
       <div class="hoverlabel" id="hoverlabel" hidden></div>
       <div class="pop" id="pop" hidden></div>
-      <div class="floater" aria-hidden="true" title="Loupe's floating button"><img src="icon.svg" alt=""></div>
+      <button type="button" class="floater" id="floater" aria-label="Open Loupe" title="Click to open."><svg viewBox="16 22 68 56" aria-hidden="true"><defs><linearGradient id="mk-b" x1="22" y1="0" x2="78" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#23262e"/><stop offset=".32" stop-color="#9aa0ab"/><stop offset=".55" stop-color="#6b717e"/><stop offset="1" stop-color="#23262e"/></linearGradient><radialGradient id="mk-g" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="#3a4152"/><stop offset="1" stop-color="#0f1218"/></radialGradient><linearGradient id="mk-r" x1="0" y1="28" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ff8466"/><stop offset="1" stop-color="#ff5b3a"/></linearGradient></defs><path d="M22 44v14a28 16 0 0 0 56 0V44z" fill="url(#mk-b)"/><ellipse cx="50" cy="44" rx="22.5" ry="12.86" fill="url(#mk-g)"/><path fill-rule="evenodd" fill="url(#mk-r)" d="M22 44a28 16 0 1 0 56 0a28 16 0 1 0-56 0zm5.5 0a22.5 12.86 0 1 1 45 0a22.5 12.86 0 1 1-45 0z"/><path d="M33.8 43.4a17.55 10.03 0 0 1 15.1-8.9" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2.8" stroke-linecap="round"/></svg></button>
+      <div class="ptool glass" id="ptool" hidden><div class="t-pick"><span class="t-app"><i></i></span><svg viewBox="0 0 9 15"><path d="M1.5 5.5l3-3 3 3M1.5 9.5l3 3 3-3"/></svg></div>
+            <span class="t-sep"></span>
+            <div class="t-btn off" id="p-copy"><svg viewBox="0 0 24 24"><path d="M9 4.5h7.5a2 2 0 0 1 2 2V15"/><path d="M12 3.2h3.5v2.4H12z"/><rect x="5.5" y="7.5" width="9.5" height="13" rx="2"/></svg>Copy</div>
+            <div class="t-btn off" id="p-clear"><svg viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.7M6.5 6.5l.9 12.2a2 2 0 0 0 2 1.8h5.2a2 2 0 0 0 2-1.8l.9-12.2M10 10v6.5M14 10v6.5"/></svg>Clear</div>
+            <div class="t-btn"><svg viewBox="0 0 24 24"><path d="M10.57 4.94 L10.90 2.87 L13.10 2.87 L13.43 4.94 L15.98 6.00 L17.68 4.76 L19.24 6.32 L18.00 8.02 L19.06 10.57 L21.13 10.90 L21.13 13.10 L19.06 13.43 L18.00 15.98 L19.24 17.68 L17.68 19.24 L15.98 18.00 L13.43 19.06 L13.10 21.13 L10.90 21.13 L10.57 19.06 L8.02 18.00 L6.32 19.24 L4.76 17.68 L6.00 15.98 L4.94 13.43 L2.87 13.10 L2.87 10.90 L4.94 10.57 L6.00 8.02 L4.76 6.32 L6.32 4.76 L8.02 6.00Z"/><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+            <span class="t-sep"></span>
+            <button type="button" class="t-btn" id="p-exit" aria-label="Close Loupe"><svg viewBox="0 0 24 24" style="stroke-width:1.9"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>Exit</button></div>
+      <div class="coach-ring" id="coach-ring" hidden></div>
+      <div class="coach-tip" id="coach-tip" hidden></div>
     </div>
     <div class="demo-foot">
       <button type="button" id="reset">Start over</button>
@@ -553,7 +579,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var desk = $('#desk'), app = $('#app'), pop = $('#pop'), log = $('#log'), check = $('#check'),
-      hoverlabel = $('#hoverlabel'), lens = $('#lens');
+      hoverlabel = $('#hoverlabel'), lens = $('#lens'), floater = $('#floater'), ptool = $('#ptool'), ring = $('#coach-ring'), tip = $('#coach-tip');
   var pristine = app.innerHTML;
   var PHRASE = 'Check my Loupe notes', FOLLOW = 'I answered in Loupe';
   var SUGGEST = { Heading: 'Make this title blue', Checkbox: 'Tick this by default', Button: 'Make this button bigger' };
@@ -569,11 +595,11 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     timers.forEach(clearTimeout); timers = [];
     app.innerHTML = pristine;
     $$('.pin', desk).forEach(function (p) { p.remove(); });
-    s = { phase: 'point', notes: [], target: null, asked: false, open: null };
+    s = { phase: 'closed', notes: [], target: null, asked: false, open: null };
     pop.hidden = true; hoverlabel.hidden = true; lens.classList.remove('dot');
-    log.innerHTML = '<div class="idle">Waiting for a note. Click something in the practice app.</div>';
+    log.innerHTML = '<div class="idle">Waiting for a note.</div>';
+    floater.hidden = false; ptool.hidden = true;
     bind();
-    var hintEl = $('.pbtn', app); hintEl.classList.add('hot'); showHover(hintEl);
     render();
   }
 
@@ -587,6 +613,34 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   }
   function clearHint() { $$('.noteable.hot', app).forEach(function (e) { if (e !== s.target) e.classList.remove('hot'); }); }
   function canPoint() { return s.phase === 'point' || s.phase === 'write' || s.phase === 'done'; }
+  function openLoupe() { floater.hidden = true; ptool.hidden = false; s.phase = s.notes.length ? 'done' : 'point'; render(); }
+  function closeLoupe() {
+    if (!canPoint()) return;
+    if (s.target) s.target.classList.remove('hot');
+    s.target = null; pop.hidden = true; hoverlabel.hidden = true; ptool.hidden = true; floater.hidden = false; s.phase = 'closed'; render();
+  }
+  /* the hint: a pulsing ring on the next thing to click, with a short line of help */
+  function coach(target, words) {
+    if (!target || target.hidden || !target.getClientRects().length) { ring.hidden = tip.hidden = true; return; }
+    var p = at(target), pad = 5;
+    ring.hidden = tip.hidden = false;
+    ring.style.left = (p.l - pad) + 'px'; ring.style.top = (p.t - pad) + 'px'; ring.style.width = (p.r - p.l + pad * 2) + 'px'; ring.style.height = (p.b - p.t + pad * 2) + 'px';
+    tip.textContent = words;
+    var tw = tip.offsetWidth, th = tip.offsetHeight, cx = (p.l + p.r) / 2;
+    var left = Math.max(8, Math.min(cx - tw / 2, p.w - tw - 8)), above = p.t - pad - th - 12 >= 34;
+    tip.style.left = left + 'px'; tip.style.top = (above ? p.t - pad - th - 12 : p.b + pad + 12) + 'px';
+    tip.className = 'coach-tip ' + (above ? 'above' : 'below');
+    tip.style.setProperty('--ax', Math.max(14, Math.min(cx - left, tw - 14)) + 'px');
+  }
+  function guide() {
+    var p = s.phase, ta = $('#note-text');
+    if (p === 'closed') coach(floater, s.notes.length ? 'Click to open Loupe again.' : 'Start here. Click the Loupe button.');
+    else if (p === 'point') coach($('.pbtn', app) && !$('.pbtn', app).hidden ? $('.pbtn', app) : $('.noteable:not([hidden])', app), 'Loupe is on. Point at anything and click it. Try this button.');
+    else if (p === 'write') { if (ta && ta.value.trim()) coach($('#add'), 'Click Add to pin your note.'); else coach($('#sug'), 'Type what should change, or click this suggestion.'); }
+    else if (p === 'tell') coach($('#tell'), 'Your note is pinned. Now tell your agent.');
+    else if (p === 'question') coach($('.ft', pop), 'The agent asked a question. Pick an answer.');
+    else coach(null);
+  }
 
   function at(el) { var d = desk.getBoundingClientRect(), r = el.getBoundingClientRect(); return { l: r.left - d.left, t: r.top - d.top, r: r.right - d.left, b: r.bottom - d.top, w: d.width }; }
   function showHover(el) {
@@ -621,9 +675,9 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
       '<button type="button" class="mini" id="cancel">Cancel</button><button type="button" class="mini primary" id="add" disabled>Add</button></div>';
     placePop(el);
     var ta = $('#note-text'), add = $('#add');
-    ta.addEventListener('input', function () { add.disabled = !ta.value.trim(); });
+    ta.addEventListener('input', function () { add.disabled = !ta.value.trim(); guide(); });
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && ta.value.trim()) { e.preventDefault(); addNote(ta.value.trim()); } });
-    $('#sug').addEventListener('click', function () { ta.value = sug; add.disabled = false; ta.focus(); });
+    $('#sug').addEventListener('click', function () { ta.value = sug; add.disabled = false; ta.focus(); guide(); });
     $('#cancel').addEventListener('click', function () { el.classList.remove('hot'); s.target = null; pop.hidden = true; s.phase = s.notes.length ? 'done' : 'point'; render(); });
     add.addEventListener('click', function () { addNote(ta.value.trim()); });
     if (window.matchMedia('(hover: hover)').matches) ta.focus();
@@ -638,6 +692,9 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     pin.addEventListener('click', function () { s.open = n; showThread(n); });
     desk.appendChild(pin); s.notes.push(n);
     el.classList.remove('hot'); s.target = null; s.phase = 'tell';
+    var idle = $('.idle', log); if (idle) idle.remove();
+    var ask = document.createElement('div'); ask.className = 'prompt'; ask.innerHTML = '<button type="button" id="tell">Say \u201C' + PHRASE + '\u201D</button>';
+    log.appendChild(ask); $('#tell').addEventListener('click', tell);
     placePins(); showThread(n); render();
   }
 
@@ -655,7 +712,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     pop.innerHTML = h; placePop(n.el);
     var body = $('.body', pop); body.scrollTop = body.scrollHeight;
     $$('[data-a]', pop).forEach(function (b) { b.addEventListener('click', function () { answer(b.dataset.a); }); });
-    var again = $('#again'); if (again) again.addEventListener('click', function () { pop.hidden = true; render(); });
+    var again = $('#again'); if (again) again.addEventListener('click', function () { pop.hidden = true; s.phase = 'point'; render(); });
   }
 
   function say(who, text) {
@@ -693,7 +750,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   function list(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
 
   function tell() {
-    var n = note(); s.phase = 'agent'; render();
+    var n = note(); s.phase = 'agent'; var ask = $('.prompt', log); if (ask) ask.remove(); render();
     say('you', PHRASE);
     later(function () { say('agent', 'Reading note ' + n.n + ': ' + n.kind + ' “' + n.name + '”. “' + n.msgs[0].text + '”'); }, 700);
     later(function () {
@@ -737,29 +794,33 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
 
   function render() {
     var n = note(), has = s.notes.length > 0, p = s.phase, lines;
+    var zero = p === 'closed' ? 'Click the Loupe button to open it' : 'Open Loupe';
     var first = p === 'write' ? 'Say what should change, then click Add'
       : p === 'point' ? 'Click something in the practice app'
       : 'Leave a note';
-    var second = 'Tell the agent “' + PHRASE + '”';
+    var second = 'Tell the agent \u201C' + PHRASE + '\u201D';
     var third = p === 'question' ? 'Answer the agent in the note'
       : p === 'agent' ? 'Watch the practice app: the agent is on it'
       : p === 'done' && n ? (n.status === 'dismissed' ? 'No change this time. Try another, or get Loupe' : 'It changed. Leave another note, or get Loupe')
       : 'Watch the practice app change';
-    var cur = (p === 'point' || p === 'write') ? 0 : p === 'tell' ? 1 : 2;
-    lines = [first, second, third];
+    var cur = p === 'closed' ? 0 : (p === 'point' || p === 'write') ? 1 : p === 'tell' ? 2 : 3;
+    if (has && (p === 'closed' || p === 'point' || p === 'write')) { zero = 'Open Loupe'; }
+    lines = [zero, first, second, third];
     check.innerHTML = lines.map(function (t, i) {
-      var ok = i < cur || (p === 'done' && i < 2), now = i === cur;
+      var ok = i < cur || (p === 'done' && i < 3), now = i === cur;
       var btn = '';
-      if (now && p === 'tell') btn = '<button type="button" class="btn small" id="tell">Tell the Agent</button>';
       if (now && p === 'done') btn = '<a class="btn small" href="#download">Get Loupe</a>';
-      return '<li class="' + (now ? 'now' : ok ? 'ok' : '') + '"><span class="n">' + (ok && !now ? '✓' : i + 1) + '</span><span class="t">' + t + '</span>' + btn + '</li>';
+      return '<li class="' + (now ? 'now' : ok ? 'ok' : '') + '"><span class="n">' + (ok && !now ? '\u2713' : i + 1) + '</span><span class="t">' + t + '</span>' + btn + '</li>';
     }).join('');
-    var tb = $('#tell'); if (tb) tb.addEventListener('click', tell);
+    $('#p-copy').className = $('#p-clear').className = 't-btn' + (has ? '' : ' off');
+    guide();
     desk.classList.toggle('locked', !canPoint());
   }
 
   $('#reset').addEventListener('click', start);
-  window.addEventListener('resize', function () { placePins(); hoverlabel.hidden = true; if (!pop.hidden) { var n = s.open || (s.phase === 'write' ? null : note()); placePop(s.phase === 'write' && s.target ? s.target : (n ? n.el : app)); } });
+  floater.addEventListener('click', openLoupe);
+  $('#p-exit').addEventListener('click', closeLoupe);
+  window.addEventListener('resize', function () { placePins(); hoverlabel.hidden = true; if (!pop.hidden) { var n = s.open || (s.phase === 'write' ? null : note()); placePop(s.phase === 'write' && s.target ? s.target : (n ? n.el : app)); } guide(); });
   start();
 
   /* hero animation. One clock (Motion when it loads, a plain frame loop otherwise) and a render(t) that draws the scene for any moment t. */
