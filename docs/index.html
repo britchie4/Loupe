@@ -73,21 +73,25 @@ section h2{margin-bottom:24px}
 @media (max-width:640px){.nav a.link{display:none}}
 
 /* hero */
-.top{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:28px 44px;align-items:end;padding-block:22px 26px}
+.top{padding-block:22px 28px}
 .hero{display:grid;gap:18px}
-.hero h1{font-size:clamp(38px,5.6vw,62px);line-height:1;font-weight:700;letter-spacing:-.035em}
+.hero h1{font-size:clamp(38px,6.4vw,72px);line-height:1;font-weight:700;letter-spacing:-.035em}
 .hero h1 span{display:block}
-@media (max-width:900px){.top{grid-template-columns:minmax(0,1fr)}}
 .hero h1 span{color:var(--coral-text)}
-.hero .lede{font-size:18px}
+.hero .lede{font-size:19px}
 .cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .cta small{color:var(--muted);font-size:14px}
 
 /* checklist, mirrors the practice in Loupe's setup */
-.demo{padding-block:0 72px}
-.practice-label{display:grid;gap:2px;margin-bottom:10px}
-.practice-label .sim{font-size:14px;color:var(--muted)}
-.practice-label b{color:var(--ink)}
+.film{margin:0;display:grid;gap:12px}
+.film video{display:block;width:100%;max-width:820px;aspect-ratio:8/7;background:#000;border-radius:16px;box-shadow:var(--shadow)}
+.film figcaption{display:grid;gap:2px;max-width:820px}
+.film #film-cap{font:700 20px/1.3 var(--display);min-height:1.3em}
+.film small{font-size:14px;color:var(--muted)}
+.demo{padding-block:64px 56px}
+.demo h2{margin-bottom:6px}
+.demo .sim{font-size:15px;color:var(--muted);margin-bottom:14px}
+.demo .check{max-width:640px;margin-bottom:16px}
 .check{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .check li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:11px;border:1.5px solid transparent;font-size:15.5px;color:var(--muted);min-height:44px}
 .check li .n{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--muted);font-size:12px;font-weight:700;display:grid;place-items:center}
@@ -183,7 +187,9 @@ section h2{margin-bottom:24px}
 pre{margin:0;font:13px/1.6 var(--mono);background:var(--term);color:var(--term-text);border-radius:12px;padding:16px;overflow-x:auto;white-space:pre}
 code{font-family:var(--mono);font-size:.9em}
 p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
-.cap{font-size:14px;color:var(--muted);margin:28px 0 8px}
+.more{margin-top:24px;max-width:780px}
+.more summary{cursor:pointer;color:var(--coral-text);font-weight:600;width:fit-content}
+.more pre{margin-top:12px}
 
 /* setup */
 .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
@@ -235,15 +241,22 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
       <small>Free and open source. macOS 14 or later.</small>
     </div>
   </div>
-  <div id="try">
-    <div class="practice-label">
-      <p class="sim"><b>Try it.</b> Simulated here. On your Mac, your own agent replies.</p>
-    </div>
-    <ol class="check" id="check" aria-live="polite"></ol>
-  </div>
   </div>
 
-  <div class="wrap demo">
+  <div class="wrap">
+    <figure class="film">
+      <video id="film" src="demo.mp4" poster="demo-thumb.png" muted playsinline loop autoplay controls preload="metadata" aria-describedby="film-cap"></video>
+      <figcaption>
+        <span id="film-cap" aria-live="off">A real Mac app, running.</span>
+        <small>Real captures of Loupe 2.0 on a sample app, with Claude Code as the agent. Steps are cut together.</small>
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="wrap demo" id="try">
+    <h2>Try it yourself</h2>
+    <p class="sim">Simulated in your browser. On your Mac, your own agent replies.</p>
+    <ol class="check" id="check" aria-live="polite"></ol>
 
     <div class="desk" id="desk">
       <div class="menubar" aria-hidden="true">
@@ -289,7 +302,8 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
         <div><dt>Hand it off</dt><dd>Tell your agent “Check my Loupe notes”. It asks on the note if unsure, changes your code, and the badge turns green.</dd></div>
         <div><dt>Or copy</dt><dd>No agent connected? Click Copy and paste your notes into any coding agent.</dd></div>
       </dl>
-      <p class="cap">A copied note:</p>
+      <details class="more">
+        <summary>See what a copied note looks like</summary>
       <pre><code>## App Feedback: Weekend Planner
 
 ### 1. AXButton[title="Save Plan"]
@@ -299,6 +313,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
 - `Button\("Save Plan"\)`
 - `AXButton.*Save Plan`
 **Feedback:** Make this button bigger</code></pre>
+      </details>
     </div>
   </section>
 
@@ -604,6 +619,14 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   $('#reset').addEventListener('click', start);
   window.addEventListener('resize', function () { placePins(); hoverlabel.hidden = true; if (!pop.hidden) { var n = s.open || (s.phase === 'write' ? null : note()); placePop(s.phase === 'write' && s.target ? s.target : (n ? n.el : app)); } });
   start();
+
+  /* captions follow the film; each scene lasts 2.2 seconds */
+  (function () {
+    var v = $('#film'), cap = $('#film-cap');
+    var CAPS = ['A real Mac app, running.', 'Point. Loupe highlights what is under your pointer.', 'Click to leave a note.', 'Say what should change.', 'The note is pinned to the button.', 'Your agent reads it and asks a question.', 'Answer right on the note.', 'The agent takes it from there.', 'It changes the code. The badge turns green.', 'Open the note to see what changed.'];
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
+    v.addEventListener('timeupdate', function () { var t = CAPS[Math.min(CAPS.length - 1, Math.floor(v.currentTime / 2.2))]; if (cap.textContent !== t) cap.textContent = t; });
+  })();
 
   /* GitHub star count: live from GitHub, and the button stands on its own if it cannot load */
   (function () {
