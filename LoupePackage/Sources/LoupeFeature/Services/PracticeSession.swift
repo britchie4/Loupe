@@ -1,9 +1,9 @@
 import Foundation
 import Observation
 
-/// Runs one practice: holds the state the practice screens draw from, hands the practice
-/// note to the person's own agent when one is connected through Agent Link, and otherwise
-/// plays a pretend agent's scripted replies after a short pause.
+/// Runs one practice: holds the state the practice screens draw from, and hands the practice
+/// note to the person's own agent when one is connected through Agent Link. Without one,
+/// the person copies the note, as they would for real.
 ///
 /// It has no connection to the real notes. A connected agent reaches the practice note
 /// only through the calls in "For connected agents" below, and only while that note is live.
@@ -11,11 +11,9 @@ import Observation
 public final class PracticeSession {
     public private(set) var model = PracticeModel()
 
-    /// How long the pretend agent "thinks" before each scripted reply
-    @ObservationIgnored public var agentDelay: Duration
-    /// How long a connected agent may stay quiet before the pretend agent is offered instead
+    /// How long a connected agent may stay quiet before the person is reminded how to reach it
     @ObservationIgnored public var quietAgentDelay: Duration
-    /// The connected agent to hand a new note to, by name. Nil means the pretend agent plays the part.
+    /// The connected agent to hand a new note to, by name. Nil means no agent: the note is copied instead.
     @ObservationIgnored public var connectedAgent: () -> String? = { nil }
     /// Whether Loupe's setup window (permission, connect, practice) is showing right now.
     /// Agents are told, so they don't send a newcomer off to pick an app mid-setup.
@@ -23,15 +21,13 @@ public final class PracticeSession {
     /// How agents refer to the current practice note
     @ObservationIgnored public private(set) var noteID = UUID()
 
-    /// The practice app's page as it is on screen, with the pretend agent's changes in it.
-    /// The page reports this after each change. Nil until it has.
+    /// The practice app's page as it is on screen. The page reports this after each
+    /// change. Nil until it has.
     @ObservationIgnored private var renderedHTML: String?
 
-    @ObservationIgnored private var agentTask: Task<Void, Never>?
     @ObservationIgnored private var quietTask: Task<Void, Never>?
 
-    public init(agentDelay: Duration = .milliseconds(1300), quietAgentDelay: Duration = .seconds(30)) {
-        self.agentDelay = agentDelay
+    public init(quietAgentDelay: Duration = .seconds(30)) {
         self.quietAgentDelay = quietAgentDelay
     }
 
@@ -53,11 +49,9 @@ public final class PracticeSession {
         waitForAgent()
     }
 
-    /// Stop waiting for the person's own agent and let the pretend agent take the note
-    public func usePretendAgent() {
-        guard model.switchToPretendAgent() else { return }
-        waitForAgent()
-    }
+    /// The person copied the note for their agent (the way without Agent Link)
+    @discardableResult
+    public func copyNote() -> Bool { model.copyNote() }
 
     /// Close the finished note so another one can be left
     public func leaveAnotherNote() { model.leaveAnotherNote() }
@@ -65,16 +59,12 @@ public final class PracticeSession {
     /// On to the closing screen. Anything still on its way from an agent is dropped.
     public func continueToFinish() {
         guard model.continueToFinish() else { return }
-        agentTask?.cancel()
-        agentTask = nil
         quietTask?.cancel()
         quietTask = nil
     }
 
     /// Throw the practice away and start over (also stops a reply that was on its way)
     public func reset() {
-        agentTask?.cancel()
-        agentTask = nil
         quietTask?.cancel()
         quietTask = nil
         renderedHTML = nil
@@ -120,13 +110,6 @@ public final class PracticeSession {
         return true
     }
 
-    @discardableResult
-    public func agentChanged(_ elements: [PracticeElement], _ change: PracticeChange) -> Bool {
-        guard model.isLive, model.agentChanged(elements, change) else { return false }
-        waitForAgent()
-        return true
-    }
-
     /// The connected agent rewrote the practice app's page
     @discardableResult
     public func agentRewrotePage(_ html: String) -> Bool {
@@ -146,27 +129,16 @@ public final class PracticeSession {
 
     // MARK: Waiting on an agent
 
-    /// Whenever the note changes hands: the pretend agent replies on a timer, while a
-    /// connected agent gets time to make progress before the pretend agent is offered instead
+    /// Whenever the note changes hands: a connected agent gets time to make progress
+    /// before the person is reminded how to reach it
     private func waitForAgent() {
-        agentTask?.cancel()
         quietTask?.cancel()
-
-        if model.isLive {
-            guard model.stage == .noteAdded || model.stage == .answered else { return }
-            let delay = quietAgentDelay
-            quietTask = Task { [weak self] in
-                try? await Task.sleep(for: delay)
-                guard !Task.isCancelled else { return }
-                self?.model.offerPretendAgent()
-            }
-        } else if model.pendingAgentMove != nil {
-            let delay = agentDelay
-            agentTask = Task { [weak self] in
-                try? await Task.sleep(for: delay)
-                guard !Task.isCancelled else { return }
-                self?.model.agentMoves()
-            }
+        guard model.isLive, model.stage == .noteAdded || model.stage == .answered else { return }
+        let delay = quietAgentDelay
+        quietTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.model.agentWentQuiet()
         }
     }
 }

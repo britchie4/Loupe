@@ -55,33 +55,6 @@ public enum PracticePage {
         return page
     }
 
-    // MARK: The pretend agent's changes, for the page to lay over itself
-
-    /// The colours the pretend agent can use, as the page's own colour names
-    static func cssColor(_ color: PracticeColor) -> String {
-        color == .standard ? "" : "var(--loupe-\(color.rawValue))"
-    }
-
-    /// The pretend agent's changes as plain values the page's script understands, by element key.
-    /// Elements it has not touched are left out.
-    public static func overlay(for looks: [PracticeElement: PracticeLook]) -> [String: [String: Any]] {
-        var overlay: [String: [String: Any]] = [:]
-        for (element, look) in looks where look != PracticeLook(text: element.title) {
-            var entry: [String: Any] = [
-                "scale": Double(look.size.scale),
-                "color": cssColor(look.color),
-                "fill": element.role == "AXButton",
-                "darkOnFill": look.color == .yellow,
-                "bold": look.bold,
-                "removed": look.removed,
-            ]
-            if element.isCheckbox { entry["checked"] = look.checked }
-            if look.text != element.title { entry["text"] = look.text }
-            overlay[element.id] = entry
-        }
-        return overlay
-    }
-
     // MARK: The whole document
 
     /// The document the practice app's web view loads once. The page's content is put into
@@ -147,8 +120,8 @@ public enum PracticePage {
     """
 
     /// Loupe's own script for the page. It reports what is under the pointer, where the
-    /// noted elements are, and what the page's source is now, and it lays the pretend
-    /// agent's changes over the page. It is the only script that ever runs there.
+    /// noted elements are, and what the page's source is now. It is the only script that
+    /// ever runs there.
     public static let bridgeScript = #"""
     (function () {
       if (window.loupe) { return; }
@@ -156,7 +129,7 @@ public enum PracticePage {
       var SKIP = '[aria-hidden="true"], [data-loupe-skip]';
       var TAGS = { BUTTON: 1, A: 1, INPUT: 1, SELECT: 1, TEXTAREA: 1, LABEL: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, P: 1, LI: 1, IMG: 1, SUMMARY: 1, TD: 1, TH: 1, BLOCKQUOTE: 1, FIGCAPTION: 1 };
       var TAG_SELECTOR = 'button, a, input, select, textarea, label, h1, h2, h3, h4, h5, h6, p, li, img, summary, td, th, blockquote, figcaption, [id], [data-loupe-key]';
-      var pickable = false, tracked = [], hoverEl = null, lastHTML = null, appliedKeys = [], originalText = new Map(), settleUntil = 0, settling = false;
+      var pickable = false, tracked = [], hoverEl = null, lastHTML = null, settleUntil = 0, settling = false;
 
       function hasOwnText(el) {
         for (var i = 0; i < el.childNodes.length; i++) {
@@ -278,51 +251,9 @@ public enum PracticePage {
         for (var j = 0; j < candidates.length; j++) {
           var el = candidates[j];
           if (el.closest(SKIP) || pointable(el) !== el) { continue; }
-          if (el.style.visibility === 'hidden') { continue; }
           el.setAttribute('tabindex', '0');
           el.setAttribute('data-loupe-tab', '');
         }
-      }
-
-      function setText(el, text) {
-        if (!originalText.has(el)) { originalText.set(el, null); }
-        var nodes = [];
-        for (var i = 0; i < el.childNodes.length; i++) {
-          if (el.childNodes[i].nodeType === 3 && el.childNodes[i].nodeValue.trim() !== '') { nodes.push(el.childNodes[i]); }
-        }
-        if (nodes.length === 0) { el.appendChild(document.createTextNode(text)); return; }
-        var lead = el.querySelector('input') ? ' ' : '';
-        nodes[nodes.length - 1].nodeValue = lead + text;
-        for (var j = 0; j < nodes.length - 1; j++) { nodes[j].nodeValue = ''; }
-      }
-
-      // Lay the pretend agent's changes over the page
-      function applyLooks(looks) {
-        Object.keys(looks).forEach(function (key) {
-          var el = find(key), look = looks[key];
-          if (!el) { return; }
-          if (!el.dataset.loupeBase) { el.dataset.loupeBase = parseFloat(getComputedStyle(el).fontSize) || 13; }
-          var base = parseFloat(el.dataset.loupeBase);
-          el.style.fontSize = look.scale === 1 ? '' : (Math.round(base * look.scale * 10) / 10) + 'px';
-          if (look.fill) {
-            el.style.backgroundColor = look.color ? (look.darkOnFill ? 'var(--loupe-fill-yellow)' : look.color) : '';
-            el.style.borderColor = look.color ? 'transparent' : '';
-            el.style.color = look.color ? (look.darkOnFill ? '#1d1d1f' : 'Canvas') : '';
-          } else {
-            el.style.color = look.color || '';
-          }
-          el.style.fontWeight = look.bold ? '800' : '';
-          el.style.visibility = look.removed ? 'hidden' : '';
-          if (typeof look.checked === 'boolean') {
-            var box = el.matches('input') ? el : el.querySelector('input[type=checkbox]');
-            if (box) {
-              box.checked = look.checked;
-              if (look.checked) { box.setAttribute('checked', ''); } else { box.removeAttribute('checked'); }
-            }
-          }
-          if (typeof look.text === 'string') { setText(el, look.text); }
-        });
-        appliedKeys = Object.keys(looks);
       }
 
       // The page's source as it stands, without the marks Loupe's script left on it
@@ -332,7 +263,6 @@ public enum PracticePage {
         for (var i = 0; i < all.length; i++) {
           var el = all[i];
           if (el.hasAttribute('data-loupe-tab')) { el.removeAttribute('tabindex'); el.removeAttribute('data-loupe-tab'); }
-          el.removeAttribute('data-loupe-base');
           if (el.getAttribute('style') === '') { el.removeAttribute('style'); }
         }
         return copy.innerHTML.trim();
@@ -365,17 +295,11 @@ public enum PracticePage {
 
       window.loupe = {
         update: function (state) {
-          var looks = state.looks || {};
-          var keys = Object.keys(looks);
-          var dropped = appliedKeys.some(function (key) { return keys.indexOf(key) < 0; });
-          if (typeof state.html === 'string' && (state.html !== lastHTML || dropped)) {
+          if (typeof state.html === 'string' && state.html !== lastHTML) {
             document.body.innerHTML = state.html;
             lastHTML = state.html;
             hoverEl = null;
-            originalText = new Map();
-            appliedKeys = [];
           }
-          applyLooks(looks);
           pickable = !!state.pickable;
           tracked = state.tracked || [];
           refreshTabbing();

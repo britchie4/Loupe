@@ -37,8 +37,6 @@ struct PracticeView: View {
         .frame(width: 480, height: 620)
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .smooth(duration: 0.3), value: stage)
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .smooth(duration: 0.3), value: session.model.agentHasRead)
-        // The practice app changing size is movement: with Reduce Motion it just changes
-        .animation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.25), value: session.model.looks)
         .onChange(of: stage) { _, newStage in announce(newStage) }
     }
 
@@ -69,7 +67,15 @@ struct PracticeView: View {
             .frame(height: 20)
             .padding(.top, 10)
 
-            PracticeChecklistView(items: checklist) { session.continueToFinish() }
+            PracticeChecklistView(
+                items: checklist,
+                onCopyNote: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(session.model.copiedText, forType: .string)
+                    session.copyNote()
+                },
+                onContinue: { session.continueToFinish() }
+            )
                 .frame(height: 94, alignment: .top)
                 .padding(.top, 8)
 
@@ -103,6 +109,7 @@ struct PracticeView: View {
 /// highlighted and holds its button, and the ones still to come are listed plainly.
 private struct PracticeChecklistView: View {
     let items: [PracticeChecklistItem]
+    let onCopyNote: () -> Void
     let onContinue: () -> Void
 
     var body: some View {
@@ -134,6 +141,11 @@ private struct PracticeChecklistView: View {
             switch item.action {
             case .copyPhrase(let phrase):
                 CopyPhraseButton(phrase: phrase)
+            case .copyNote:
+                Button(PracticeCopy.copyNoteLabel, action: onCopyNote)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.loupeAccentStrong)
+                    .accessibilityHint("Copies your practice note, the way Copy does in Loupe's toolbar")
             case .continuePractice:
                 Button(PracticeCopy.continueLabel, action: onContinue)
                     .buttonStyle(.borderedProminent)
@@ -476,7 +488,7 @@ private struct PracticeNoteWindow: View {
                 newNoteBody
             } else {
                 thread
-                Divider().opacity(0.6)
+                if stage == .done || session.model.isLive { Divider().opacity(0.6) }
                 if stage == .done {
                     HStack {
                         Spacer()
@@ -485,7 +497,7 @@ private struct PracticeNoteWindow: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                } else {
+                } else if session.model.isLive {
                     composer
                 }
             }
@@ -568,6 +580,17 @@ private struct PracticeNoteWindow: View {
         return max(90, maxHeight - chrome)
     }
 
+    /// The small line under the conversation saying what the note is waiting for
+    private var caption: String? {
+        let model = session.model
+        if !model.isLive {
+            return stage == .noteAdded ? PracticeCopy.copyHint : nil
+        }
+        if model.agentIsQuiet { return PracticeCopy.quietAgentHint }
+        if stage == .noteAdded, !model.agentHasRead { return PracticeCopy.noAgentYet }
+        return nil
+    }
+
     private var thread: some View {
         ScrollViewReader { scroller in
             ScrollView(.vertical) {
@@ -577,16 +600,12 @@ private struct PracticeNoteWindow: View {
                             .id(message.id)
                             .transition(reduceMotion ? .opacity : .offset(y: 8).combined(with: .opacity))
                     }
-                    if stage == .noteAdded, !session.model.agentHasRead {
-                        Text(PracticeCopy.noAgentYet)
+                    if let caption {
+                        Text(caption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                    if session.model.offersPretendAgent {
-                        Button(PracticeCopy.usePretendAgentLabel) { session.usePretendAgent() }
-                            .buttonStyle(.plain)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.loupeAccentText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .id(caption)
                             .transition(.opacity)
                     }
                 }

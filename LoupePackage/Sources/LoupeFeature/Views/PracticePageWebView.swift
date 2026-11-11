@@ -57,7 +57,6 @@ struct PracticePageWebView: NSViewRepresentable {
         if let selected = model.selected { tracked.append(selected.id) }
         context.coordinator.push(PageUpdate(
             html: model.pageHTML,
-            looks: PracticePage.overlay(for: model.looks),
             pickable: model.canPickElement,
             tracked: tracked.sorted()
         ))
@@ -70,12 +69,11 @@ struct PracticePageWebView: NSViewRepresentable {
     /// Everything the page needs to show the practice app as it is now
     struct PageUpdate {
         let html: String
-        let looks: [String: [String: Any]]
         let pickable: Bool
         let tracked: [String]
 
         var json: String? {
-            let object: [String: Any] = ["html": html, "looks": looks, "pickable": pickable, "tracked": tracked]
+            let object: [String: Any] = ["html": html, "pickable": pickable, "tracked": tracked]
             guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return nil }
             return String(data: data, encoding: .utf8)
         }

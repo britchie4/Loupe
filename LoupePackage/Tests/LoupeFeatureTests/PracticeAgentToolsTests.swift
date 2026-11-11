@@ -51,7 +51,7 @@ struct PracticeAgentToolsTests {
         #expect(try call("edit_practice_app", ["html": "<p>Hello</p>"]).isError)
     }
 
-    @Test func aScriptedPracticeIsInvisibleToAgents() throws {
+    @Test func aPracticeWithoutAnAgentIsInvisibleToAgents() throws {
         practice.select(.saveButton)
         practice.addNote("Make this button bigger")
         #expect(!practice.model.isLive)

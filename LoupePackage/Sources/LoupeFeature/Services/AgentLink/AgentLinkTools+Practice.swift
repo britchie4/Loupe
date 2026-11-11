@@ -155,7 +155,7 @@ extension AgentLinkTools {
                 "identifier": .string(element.rawValue),
                 "location": .string("\(PracticeCopy.appName) > \(ElementKind.name(forRole: element.role)) \"\(element.title)\""),
             ],
-            "screenText": ["title": .string(model.look(of: element).text)],
+            "screenText": ["title": .string(element.title)],
             "practiceApp": practiceAppJSON(practice),
             "replies": .array(model.messages.dropFirst().map { message in
                 ["from": .string(message.author.rawValue), "text": .string(message.text), "at": .string(isoDate(message.time))]
