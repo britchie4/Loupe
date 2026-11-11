@@ -74,10 +74,34 @@ public enum ElementKind {
 
     /// The plain-language name used everywhere Loupe shows an element: `Menu "Regular"`,
     /// or just `Button` when the element has no words of its own.
-    public static func label(role: String, title: String?, value: String?, identifier: String?) -> String {
+    public static func label(role: String, title: String?, description: String? = nil, value: String?, identifier: String?) -> String {
         let kind = name(forRole: role)
-        guard let text = visibleText(title: title, value: value, identifier: identifier) else { return kind }
+        guard let text = visibleText(title: title, description: description, value: value, identifier: identifier) else { return kind }
         return "\(kind) \u{201C}\(text)\u{201D}"
+    }
+
+    /// The element's own name: its title, or its accessibility description when it has no title.
+    /// SwiftUI controls report their text as the description (`Button("Save")` has no title),
+    /// while AppKit controls report it as the title.
+    public static func accessibleName(title: String?, description: String?) -> String? {
+        [title, description]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    /// The raw accessibility name developers see: `AXButton[identifier="save", title="Save"]`.
+    /// An element named only by its description shows that instead: `AXButton[description="Save"]`.
+    public static func technicalLabel(role: String, identifier: String?, title: String?, description: String? = nil) -> String {
+        var attrs: [String] = []
+        if let identifier, !identifier.isEmpty {
+            attrs.append("identifier=\"\(identifier)\"")
+        }
+        if let title, !title.isEmpty {
+            attrs.append("title=\"\(title)\"")
+        } else if let description = accessibleName(title: nil, description: description) {
+            attrs.append("description=\"\(description)\"")
+        }
+        return attrs.isEmpty ? role : "\(role)[\(attrs.joined(separator: ", "))]"
     }
 
     /// Whether a developer-assigned identifier reads like words ("First Text View") rather than
@@ -91,11 +115,12 @@ public enum ElementKind {
         return true
     }
 
-    /// The words a person sees on the element: its title, else its value, else a readable
-    /// identifier. Long values are shortened to one line.
-    public static func visibleText(title: String?, value: String?, identifier: String?, limit: Int = 40) -> String? {
+    /// The words a person sees on the element: its title, else its accessibility description
+    /// (where SwiftUI controls keep their text), else its value, else a readable identifier.
+    /// Long values are shortened to one line.
+    public static func visibleText(title: String?, description: String? = nil, value: String?, identifier: String?, limit: Int = 40) -> String? {
         let readableIdentifier = identifier.flatMap { isReadableIdentifier($0) ? $0 : nil }
-        let candidates = [title, value, readableIdentifier]
+        let candidates = [title, description, value, readableIdentifier]
         guard let raw = candidates.compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) }).first(where: { !$0.isEmpty }) else {
             return nil
         }

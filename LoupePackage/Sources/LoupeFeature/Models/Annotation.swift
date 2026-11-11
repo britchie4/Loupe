@@ -63,6 +63,9 @@ public struct Annotation: Identifiable, Equatable, Codable {
     public let elementSubrole: String?
     public let elementIdentifier: String?
     public let elementTitle: String?
+    /// The accessibility description, which names SwiftUI controls that have no title.
+    /// Missing from notes saved before Loupe 2.0.
+    public let elementDescription: String?
     public let elementValue: String?
     public let hierarchyPath: [HierarchyNode]
     public let windowTitle: String?
@@ -100,6 +103,7 @@ public struct Annotation: Identifiable, Equatable, Codable {
         elementSubrole: String? = nil,
         elementIdentifier: String?,
         elementTitle: String? = nil,
+        elementDescription: String? = nil,
         elementValue: String? = nil,
         hierarchyPath: [HierarchyNode] = [],
         windowTitle: String? = nil,
@@ -122,6 +126,7 @@ public struct Annotation: Identifiable, Equatable, Codable {
         self.elementSubrole = elementSubrole
         self.elementIdentifier = elementIdentifier
         self.elementTitle = elementTitle
+        self.elementDescription = elementDescription
         self.elementValue = elementValue
         self.hierarchyPath = hierarchyPath
         self.windowTitle = windowTitle
@@ -154,21 +159,17 @@ public struct Annotation: Identifiable, Equatable, Codable {
     public func displayLabel(style: NamingStyle) -> String {
         switch style {
         case .humanized:
-            return ElementKind.label(role: elementRole, title: elementTitle, value: elementValue, identifier: elementIdentifier)
+            return ElementKind.label(role: elementRole, title: elementTitle, description: elementDescription, value: elementValue, identifier: elementIdentifier)
         case .technical:
-            var attrs: [String] = []
-            if let identifier = elementIdentifier, !identifier.isEmpty {
-                attrs.append("identifier=\"\(identifier)\"")
-            }
-            if let title = elementTitle, !title.isEmpty {
-                attrs.append("title=\"\(title)\"")
-            }
-            if attrs.isEmpty {
-                return elementRole
-            } else {
-                return "\(elementRole)[\(attrs.joined(separator: ", "))]"
-            }
+            return ElementKind.technicalLabel(role: elementRole, identifier: elementIdentifier, title: elementTitle, description: elementDescription)
         }
+    }
+
+    /// Search patterns that AI agents can use to find this element in code
+    public var searchPatterns: [String] {
+        SearchPatternGenerator.patterns(
+            identifier: elementIdentifier, title: elementTitle, description: elementDescription, role: elementRole
+        )
     }
 
     /// Display label for the element (defaults to humanized)
@@ -286,6 +287,7 @@ public final class AnnotationStore: ObservableObject {
             elementSubrole: element.subrole,
             elementIdentifier: element.identifier,
             elementTitle: element.title,
+            elementDescription: element.axDescription,
             elementValue: element.value,
             hierarchyPath: element.hierarchyPath,
             windowTitle: windowTitle,

@@ -8,30 +8,9 @@ public struct FeedbackOutputGenerator {
 
     // MARK: - Element Naming
 
-    /// Generate a technical element name (e.g., AXButton[title="Save"])
-    private func technicalName(role: String, title: String?, identifier: String?) -> String {
-        var attrs: [String] = []
-        if let identifier = identifier, !identifier.isEmpty {
-            attrs.append("identifier=\"\(identifier)\"")
-        }
-        if let title = title, !title.isEmpty {
-            attrs.append("title=\"\(title)\"")
-        }
-
-        if attrs.isEmpty {
-            return role
-        } else {
-            return "\(role)[\(attrs.joined(separator: ", "))]"
-        }
-    }
-
     /// Generate element name for an annotation (always technical for agent output)
     private func elementName(for annotation: Annotation) -> String {
-        technicalName(
-            role: annotation.elementRole,
-            title: annotation.elementTitle,
-            identifier: annotation.elementIdentifier
-        )
+        annotation.displayLabel(style: .technical)
     }
 
     // MARK: - Search Patterns
@@ -40,11 +19,7 @@ public struct FeedbackOutputGenerator {
     /// - Parameter annotation: The annotation to generate patterns for
     /// - Returns: Array of regex patterns
     private func searchPatterns(for annotation: Annotation) -> [String] {
-        SearchPatternGenerator.patterns(
-            identifier: annotation.elementIdentifier,
-            title: annotation.elementTitle,
-            role: annotation.elementRole
-        )
+        annotation.searchPatterns
     }
 
     // MARK: - Disambiguation
@@ -75,8 +50,8 @@ public struct FeedbackOutputGenerator {
         let searchTerm: String
         if let id = annotation.elementIdentifier, !id.isEmpty {
             searchTerm = id
-        } else if let title = annotation.elementTitle, !title.isEmpty {
-            searchTerm = title
+        } else if let name = ElementKind.accessibleName(title: annotation.elementTitle, description: annotation.elementDescription) {
+            searchTerm = name
         } else {
             return nil
         }

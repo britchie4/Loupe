@@ -252,7 +252,8 @@ public final class AccessibilityInspector {
                 let subrole = getStringAttribute(el, kAXSubroleAttribute as CFString)
                 let identifier = getStringAttribute(el, kAXIdentifierAttribute as CFString)
                 let title = getStringAttribute(el, kAXTitleAttribute as CFString)
-                let node = HierarchyNode(role: role, subrole: subrole, identifier: identifier, title: title)
+                let description = getStringAttribute(el, kAXDescriptionAttribute as CFString)
+                let node = HierarchyNode(role: role, subrole: subrole, identifier: identifier, title: title, description: description)
                 path.insert(node, at: 0)
             }
 
@@ -342,7 +343,11 @@ public final class AccessibilityInspector {
         }
 
         let identifier = getStringAttribute(element, kAXIdentifierAttribute as CFString)
-        let title = getStringAttribute(element, kAXTitleAttribute as CFString)
+        // SwiftUI controls have no title; their text is the accessibility description
+        let title = ElementKind.accessibleName(
+            title: getStringAttribute(element, kAXTitleAttribute as CFString),
+            description: getStringAttribute(element, kAXDescriptionAttribute as CFString)
+        )
         let siblingFrame = getFrameAttribute(element)
 
         // Determine relative position

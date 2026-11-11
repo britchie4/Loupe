@@ -348,12 +348,11 @@ enum AgentLinkTools {
                 "identifier": optional(note.elementIdentifier),
                 "frameWhenNoted": frameJSON(note.elementFrame),
                 "location": .string(note.aiLocationString),
-                "searchPatterns": .array(SearchPatternGenerator.patterns(
-                    identifier: note.elementIdentifier, title: note.elementTitle, role: note.elementRole
-                ).map { .string($0) }),
+                "searchPatterns": .array(note.searchPatterns.map { .string($0) }),
             ],
             "screenText": [
                 "title": optional(note.elementTitle),
+                "description": optional(note.elementDescription),
                 "value": optional(note.elementValue),
                 "windowTitle": optional(note.windowTitle),
                 "nearby": .array(note.siblings.map { .string($0.displayString) }),

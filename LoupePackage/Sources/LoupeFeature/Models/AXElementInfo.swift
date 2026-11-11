@@ -56,27 +56,20 @@ public struct HierarchyNode: Equatable, Codable {
     public let subrole: String?
     public let identifier: String?
     public let title: String?
+    /// The accessibility description, which names SwiftUI controls that have no title
+    public let description: String?
 
-    public init(role: String, subrole: String? = nil, identifier: String? = nil, title: String? = nil) {
+    public init(role: String, subrole: String? = nil, identifier: String? = nil, title: String? = nil, description: String? = nil) {
         self.role = role
         self.subrole = subrole
         self.identifier = identifier
         self.title = title
+        self.description = description
     }
 
     /// Annotated string with identifying attributes: AXGroup[identifier="toolbar"]
     public var annotatedString: String {
-        var attrs: [String] = []
-        if let id = identifier, !id.isEmpty {
-            attrs.append("identifier=\"\(id)\"")
-        }
-        if let t = title, !t.isEmpty {
-            attrs.append("title=\"\(t)\"")
-        }
-        if attrs.isEmpty {
-            return role
-        }
-        return "\(role)[\(attrs.joined(separator: ", "))]"
+        ElementKind.technicalLabel(role: role, identifier: identifier, title: title, description: description)
     }
 
     /// Just the role name for compact display
@@ -100,9 +93,11 @@ public struct SearchPatternGenerator {
     /// - Parameters:
     ///   - identifier: The element's accessibility identifier
     ///   - title: The element's title
+    ///   - description: The element's accessibility description, used when it has no title
+    ///     (SwiftUI controls report their text there)
     ///   - role: The element's AX role
     /// - Returns: Array of regex patterns
-    public static func patterns(identifier: String?, title: String?, role: String) -> [String] {
+    public static func patterns(identifier: String?, title: String?, description: String? = nil, role: String) -> [String] {
         var patterns: [String] = []
 
         // Priority 1: Identifier-based patterns
@@ -118,12 +113,17 @@ public struct SearchPatternGenerator {
             }
         }
 
-        // Priority 2: Title-based patterns
-        if let title = title, !title.isEmpty {
-            let escapedTitle = title.replacingOccurrences(of: "\"", with: "\\\"")
-            patterns.append("Text\\(\"\(escapedTitle)\"\\)")
-            patterns.append("Button\\(\"\(escapedTitle)\"\\)")
-            patterns.append("\(role).*\(escapedTitle)")
+        // Priority 2: Name-based patterns (the title, or the description when there is no title)
+        let hasTitle = !(title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if let name = ElementKind.accessibleName(title: title, description: description) {
+            let escapedName = name.replacingOccurrences(of: "\"", with: "\\\"")
+            patterns.append("Text\\(\"\(escapedName)\"\\)")
+            patterns.append("Button\\(\"\(escapedName)\"\\)")
+            if !hasTitle {
+                // A description can also come from an explicit accessibility label in code
+                patterns.append("accessibilityLabel\\(\"\(escapedName)\"\\)")
+            }
+            patterns.append("\(role).*\(escapedName)")
         }
 
         return patterns
@@ -248,20 +248,9 @@ public struct AXElementInfo: Identifiable, Equatable {
     public func displayLabel(style: NamingStyle) -> String {
         switch style {
         case .humanized:
-            return ElementKind.label(role: role, title: title, value: value, identifier: identifier)
+            return ElementKind.label(role: role, title: title, description: axDescription, value: value, identifier: identifier)
         case .technical:
-            var attrs: [String] = []
-            if let id = identifier, !id.isEmpty {
-                attrs.append("identifier=\"\(id)\"")
-            }
-            if let t = title, !t.isEmpty {
-                attrs.append("title=\"\(t)\"")
-            }
-            if attrs.isEmpty {
-                return role
-            } else {
-                return "\(role)[\(attrs.joined(separator: ", "))]"
-            }
+            return ElementKind.technicalLabel(role: role, identifier: identifier, title: title, description: axDescription)
         }
     }
 
@@ -278,7 +267,7 @@ public struct AXElementInfo: Identifiable, Equatable {
 
     /// Search patterns that AI agents can use to find this element in code
     public var searchPatterns: [String] {
-        SearchPatternGenerator.patterns(identifier: identifier, title: title, role: role)
+        SearchPatternGenerator.patterns(identifier: identifier, title: title, description: axDescription, role: role)
     }
 
     public static func == (lhs: AXElementInfo, rhs: AXElementInfo) -> Bool {

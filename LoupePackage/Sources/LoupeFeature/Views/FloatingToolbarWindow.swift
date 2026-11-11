@@ -65,6 +65,10 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
     /// How far the pointer must move before a press becomes a drag, in points
     static let dragThreshold: CGFloat = 3
 
+    /// The toolbar floats just above the inspection overlay. The note window sits one
+    /// level higher still (see AnnotationPopoverController.panelLevel).
+    static let windowLevel = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+
     /// Remembers where the person left the collapsed icon
     private static let savedFrameKey = "loupe.toolbarCollapsedFrame"
 
@@ -92,7 +96,7 @@ public final class FloatingToolbarWindowController: NSWindowController, Observab
 
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+        window.level = Self.windowLevel
         window.hasShadow = false
         // Catch clicks across the whole window, even where nothing is drawn at that moment.
         // A see-through window otherwise lets clicks fall through its clear pixels, so a

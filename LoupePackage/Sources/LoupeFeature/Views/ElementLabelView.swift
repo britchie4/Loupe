@@ -18,13 +18,15 @@ extension View {
 public struct ElementLabelView: View {
     let role: String
     let title: String?
+    let description: String?
     let identifier: String?
     let value: String?
     let namingStyle: NamingStyle
 
-    public init(role: String, title: String?, identifier: String?, value: String? = nil, namingStyle: NamingStyle = .humanized) {
+    public init(role: String, title: String?, description: String? = nil, identifier: String?, value: String? = nil, namingStyle: NamingStyle = .humanized) {
         self.role = role
         self.title = title
+        self.description = description
         self.identifier = identifier
         self.value = value
         self.namingStyle = namingStyle
@@ -51,7 +53,7 @@ public struct ElementLabelView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
 
-            if let displayText = ElementKind.visibleText(title: title, value: value, identifier: identifier) {
+            if let displayText = ElementKind.visibleText(title: title, description: description, value: value, identifier: identifier) {
                 Text("\u{201C}\(displayText)\u{201D}")
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(.primary)
@@ -70,18 +72,7 @@ public struct ElementLabelView: View {
 
     /// Build technical string like `AXButton[title="Save"]`
     private var technicalString: String {
-        var attrs: [String] = []
-        if let id = identifier, !id.isEmpty {
-            attrs.append("identifier=\"\(id)\"")
-        }
-        if let t = title, !t.isEmpty {
-            attrs.append("title=\"\(t)\"")
-        }
-        if attrs.isEmpty {
-            return role
-        } else {
-            return "\(role)[\(attrs.joined(separator: ", "))]"
-        }
+        ElementKind.technicalLabel(role: role, identifier: identifier, title: title, description: description)
     }
 }
 
@@ -139,6 +130,7 @@ public final class ElementLabelWindowController {
         let labelView = ElementLabelView(
             role: element.role,
             title: element.title,
+            description: element.axDescription,
             identifier: element.identifier,
             value: element.value,
             namingStyle: namingStyle

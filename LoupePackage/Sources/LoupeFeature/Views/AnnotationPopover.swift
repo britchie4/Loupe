@@ -19,6 +19,7 @@ struct NoteElementSummary {
             role: element.role,
             identifier: element.identifier,
             title: element.title,
+            description: element.axDescription,
             value: element.value,
             path: element.hierarchyPath,
             appName: appName
@@ -30,6 +31,7 @@ struct NoteElementSummary {
             role: annotation.elementRole,
             identifier: annotation.elementIdentifier,
             title: annotation.elementTitle,
+            description: annotation.elementDescription,
             value: annotation.elementValue,
             path: annotation.hierarchyPath,
             appName: annotation.appName
@@ -40,6 +42,7 @@ struct NoteElementSummary {
         role: String,
         identifier: String?,
         title: String?,
+        description: String?,
         value: String?,
         path: [HierarchyNode],
         appName: String?
@@ -50,7 +53,7 @@ struct NoteElementSummary {
         } else {
             kindLine = kind
         }
-        if let visible = ElementKind.visibleText(title: title, value: value, identifier: identifier) {
+        if let visible = ElementKind.visibleText(title: title, description: description, value: value, identifier: identifier) {
             nameLine = "\u{201C}\(visible)\u{201D}"
         } else {
             nameLine = kind
@@ -59,6 +62,7 @@ struct NoteElementSummary {
         var rows: [(label: String, value: String)] = [("Role", role)]
         if let identifier, !identifier.isEmpty { rows.append(("Identifier", identifier)) }
         if let title, !title.isEmpty { rows.append(("Title", title)) }
+        if let description, !description.isEmpty { rows.append(("Description", description)) }
         if let value, !value.isEmpty { rows.append(("Value", value)) }
         if !path.isEmpty {
             rows.append(("Path", path.map { $0.annotatedString }.joined(separator: " > ")))
@@ -72,6 +76,9 @@ struct NoteElementSummary {
 @MainActor
 final class NoteWindowState: ObservableObject {
     @Published var hasUnsavedInput = false
+    /// The newest copy of the note on show, sent when it changes outside the window
+    /// (an agent replied or marked it done), so the open window keeps up
+    @Published var latestNote: Annotation?
     var onSizeChange: ((CGSize) -> Void)?
 }
 
@@ -150,6 +157,9 @@ struct AnnotationPopover: View {
         .onChange(of: replyText) { updateUnsavedInput() }
         .onChange(of: editText) { updateUnsavedInput() }
         .onChange(of: isEditing) { updateUnsavedInput() }
+        .onReceive(windowState.$latestNote) { latest in
+            if let latest, latest != note { note = latest }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .loupePopoverReadyForFocus)) { _ in
             let target = initialFocus
             focus = target
@@ -530,6 +540,12 @@ final class AnnotationPopoverController {
     private var lastContentSize: CGSize?
     /// Keeps the open note window's SwiftUI content alive
     private var hostingController: NSViewController?
+    /// The saved note the open window is showing; nil for a new note or when nothing is open
+    private var shownNoteID: UUID?
+
+    /// The note window sits one level above the toolbar, so the toolbar can never cover
+    /// the note's text or buttons
+    static let panelLevel = NSWindow.Level(rawValue: FloatingToolbarWindowController.windowLevel.rawValue + 1)
 
     /// Spacing between element and panel edge
     private let panelOffset: CGFloat = 8
@@ -594,6 +610,43 @@ final class AnnotationPopoverController {
                 }
             )
         }
+        shownNoteID = note.id
+    }
+
+    /// Bring the open note window up to date after notes changed outside it, for example
+    /// when an agent replied or marked the note done. Closes the window if its note is gone.
+    func notesDidChange(_ notes: [Annotation]) {
+        guard let id = shownNoteID else { return }
+        if let note = notes.first(where: { $0.id == id }) {
+            windowState?.latestNote = note
+        } else {
+            dismiss()
+        }
+    }
+
+    /// Build the note window's panel
+    static func makePanel(contentRect: NSRect) -> NSPanel {
+        // .nonactivatingPanel lets the panel become key (accept keyboard input) without
+        // requiring the app to be active. This is critical because the overlay window's
+        // click monitor consumes mouse events before they reach the window, so macOS
+        // doesn't register user interaction and NSApp.activate() is silently declined.
+        let panel = PopoverPanel(
+            contentRect: contentRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.isFloatingPanel = true  // Stay above other windows
+        // Set the level after isFloatingPanel, which resets it to the plain floating level
+        // (below the toolbar, which then drew over the note's buttons)
+        panel.level = panelLevel
+        panel.becomesKeyOnlyIfNeeded = false  // Always become key when clicked
+        panel.hidesOnDeactivate = false  // Stay visible when app loses focus
+        return panel
     }
 
     private func present(
@@ -656,24 +709,7 @@ final class AnnotationPopoverController {
             preferredEdge: preferredEdge
         )
 
-        // Create the panel with .nonactivatingPanel so it can become key (accept keyboard
-        // input) without requiring the app to be active. This is critical because the overlay
-        // window's click monitor consumes mouse events before they reach the window, so macOS
-        // doesn't register user interaction and NSApp.activate() is silently declined.
-        let panel = PopoverPanel(
-            contentRect: NSRect(origin: panelOrigin, size: contentSize),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.level = .popUpMenu
-        panel.hasShadow = true
-        panel.isFloatingPanel = true  // Stay above other windows
-        panel.becomesKeyOnlyIfNeeded = false  // Always become key when clicked
-        panel.hidesOnDeactivate = false  // Stay visible when app loses focus
+        let panel = Self.makePanel(contentRect: NSRect(origin: panelOrigin, size: contentSize))
 
         // Wrap the hosting view in a FirstMouseView to ensure clicks work immediately
         let hostingView = hostingController.view
@@ -1024,6 +1060,7 @@ final class AnnotationPopoverController {
         removeKeyboardMonitor()
         windowState?.onSizeChange = nil
         windowState = nil
+        shownNoteID = nil
 
         guard let panel = panel else {
             onDismissCallback?()

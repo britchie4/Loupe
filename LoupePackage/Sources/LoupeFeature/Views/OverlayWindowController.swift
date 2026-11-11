@@ -147,7 +147,12 @@ public final class OverlayWindowController: NSWindowController {
             .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                MainActor.assumeIsolated { self?.updateAnnotationBadges() }
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.updateAnnotationBadges()
+                    // Keep an open note window in step with changes made by an agent
+                    self.popoverController.notesDidChange(self.annotationStore.annotations)
+                }
             }
     }
 
@@ -746,6 +751,12 @@ public final class OverlayWindowController: NSWindowController {
     public override func close() {
         // Remove click monitor before closing
         removeClickMonitor()
+
+        // Take any open note window down too. Its buttons work through this controller,
+        // so left behind (when the inspected app quits or relaunches) it would stay on
+        // screen with stale contents and ignore Close.
+        notesSubscription = nil
+        popoverController.dismiss(animated: false)
 
         if let link = displayLink {
             CVDisplayLinkStop(link)
