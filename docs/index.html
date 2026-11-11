@@ -316,22 +316,6 @@ p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
 @media (max-width:480px){.link-list li{grid-template-columns:minmax(0,1fr);gap:8px}}
 @media (prefers-reduced-motion: reduce){.link-switch .knob,.link-switch .knob::after,.link-list li{transition:none}}
 
-/* setup */
-.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-.tabs button{font:600 15px/1 var(--body);padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
-.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.panel{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;max-width:820px}
-.panel p{color:var(--muted);font-size:16px}
-.codebox{position:relative;min-width:0}
-.codebox pre{padding-right:84px}
-.copy{position:absolute;top:10px;right:10px;font:600 12.5px/1 var(--body);padding:7px 10px;border-radius:8px;border:1px solid #454a55;background:#262a32;color:#e9e6e0;cursor:pointer}
-.setup-steps{margin:0 0 28px;padding:0;list-style:none;display:grid;gap:10px;counter-reset:s;max-width:60ch}
-.setup-steps li{counter-increment:s;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
-.setup-steps li::before{content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--coral);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center}
-.setup-steps span{color:var(--muted)}
-.after{margin-top:20px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;max-width:820px}
-.after p{color:var(--muted);font-size:16px}
-
 /* download */
 .get{display:grid;gap:16px;justify-items:start;max-width:780px}
 .get h2{margin:0}
@@ -351,7 +335,6 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
   <a class="brand" href="#top"><img src="icon.svg" alt="">Loupe</a>
   <a class="link" href="#how">How it works</a>
   <a class="link" href="#agents">Agent Link</a>
-  <a class="link" href="#setup">Set up</a>
   <a class="btn small" href="#download">Download</a>
 </header>
 
@@ -535,64 +518,12 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     </div>
   </section>
 
-  <section id="setup">
-    <div class="wrap">
-      <h2>Set up Agent Link</h2>
-      <ol class="setup-steps">
-        <li><span><b>Turn on Agent Link</b> in Loupe's Settings.</span></li>
-        <li><span><b>Add Loupe to your agent</b> with the command below. Settings also has a button that does it for you.</span></li>
-        <li><span><b>Start a new session</b> in your agent. Sessions that were already open won't see Loupe.</span></li>
-      </ol>
-
-      <div class="tabs" role="tablist" aria-label="Agent to set up">
-        <button role="tab" aria-selected="true" data-tab="claude">Claude Code</button>
-        <button role="tab" aria-selected="false" data-tab="codex">Codex</button>
-        <button role="tab" aria-selected="false" data-tab="cursor">Cursor</button>
-        <button role="tab" aria-selected="false" data-tab="xcode">Xcode</button>
-        <button role="tab" aria-selected="false" data-tab="other">Other agent</button>
-      </div>
-
-      <div class="panel" data-panel="claude">
-        <p>Paste into Terminal or a Claude Code session.</p>
-        <div class="codebox"><pre><code>claude mcp add --scope user loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
-      </div>
-      <div class="panel" data-panel="codex" hidden>
-        <p>Paste into Terminal or a Codex chat.</p>
-        <div class="codebox"><pre><code>codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
-      </div>
-      <div class="panel" data-panel="cursor" hidden>
-        <p>Click <b>Add to Cursor</b> in Loupe's Settings, or add this to <code>~/.cursor/mcp.json</code>:</p>
-        <div class="codebox"><pre><code>{
-  "mcpServers": {
-    "loupe": {
-      "command": "/Applications/Loupe.app/Contents/MacOS/Loupe",
-      "args": ["--mcp"]
-    }
-  }
-}</code></pre><button class="copy" type="button">Copy</button></div>
-      </div>
-      <div class="panel" data-panel="xcode" hidden>
-        <p>Xcode's built-in agents keep their own settings, so they need their own lines. Paste each one into Terminal.</p>
-        <div class="codebox"><pre><code>CLAUDE_CONFIG_DIR="$HOME/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig" claude mcp add --scope user loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
-        <div class="codebox"><pre><code>CODEX_HOME="$HOME/Library/Developer/Xcode/CodingAssistant/codex" codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
-      </div>
-      <div class="panel" data-panel="other" hidden>
-        <p>Click <b>Copy setup prompt</b> in Loupe's Settings and paste it into your agent, or register this as a local MCP server named <code>loupe</code>:</p>
-        <div class="codebox"><pre><code>/Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
-      </div>
-
-      <div class="after">
-        <p>Optional: this installs a skill that teaches your agent how to work through Loupe notes.</p>
-        <div class="codebox"><pre><code>npx skills add britchie4/Loupe</code></pre><button class="copy" type="button">Copy</button></div>
-      </div>
-    </div>
-  </section>
-
   <section id="download">
     <div class="wrap get">
       <img src="icon.svg" alt="Loupe app icon">
       <h2>Get Loupe</h2>
       <p>Free and open source (MIT). Works on macOS 14 and later.</p>
+      <p>Works with Claude Code, Codex, Cursor and Xcode's agents. Loupe walks you through connecting yours the first time you open it.</p>
       <div class="cta">
         <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download .dmg</a>
         <a class="btn ghost" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">Build from source</a>
@@ -1024,20 +955,6 @@ footer nav{display:flex;flex-wrap:wrap;gap:20px}
     });
   })();
 
-  /* setup tabs and copy buttons */
-  $$('.tabs button').forEach(function (b) {
-    b.addEventListener('click', function () {
-      $$('.tabs button').forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-      $$('.panel').forEach(function (pn) { pn.hidden = pn.dataset.panel !== b.dataset.tab; });
-    });
-  });
-  $$('.copy').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var code = $('code', b.parentNode), done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 2000); };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code.textContent).then(done, select); else select();
-      function select() { var r = document.createRange(); r.selectNodeContents(code); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
-    });
-  });
 })();
 </script>
 </body>
