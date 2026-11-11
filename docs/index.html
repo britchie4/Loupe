@@ -1,945 +1,966 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loupe — Target elements, not screenshots.</title>
-    <meta name="description" content="macOS accessibility inspector for AI-agent workflows. Inspect UI elements, annotate changes, copy agent-readable output.">
-    <meta property="og:title" content="Loupe — Target elements, not screenshots.">
-    <meta property="og:description" content="macOS accessibility inspector for AI-agent workflows.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://britchie4.github.io/Loupe/">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        *, *::before, *::after {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --accent: #f59e0b;
-            --accent-hover: #d97706;
-            --accent-dim: rgba(245, 158, 11, 0.12);
-            --accent-glow: rgba(245, 158, 11, 0.06);
-
-            --bg-primary: #0a0a0b;
-            --bg-secondary: #111113;
-            --bg-card: #141416;
-            --bg-elevated: #1c1c1f;
-
-            --border: rgba(255, 255, 255, 0.06);
-            --border-accent: rgba(245, 158, 11, 0.2);
-
-            --text-primary: #fafafa;
-            --text-secondary: #a1a1a6;
-            --text-tertiary: #6b6b70;
-
-            --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
-
-            --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        html {
-            scroll-behavior: smooth;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        body {
-            font-family: var(--font-body);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* ── Grain texture overlay ── */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 9999;
-            opacity: 0.03;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-        }
-
-        /* ── Layout ── */
-        .container {
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-
-        section {
-            padding: 100px 0;
-        }
-
-        /* ── Nav ── */
-        nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            padding: 16px 0;
-            background: rgba(10, 10, 11, 0.8);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border-bottom: 1px solid var(--border);
-        }
-
-        nav .container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .nav-brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-            color: var(--text-primary);
-        }
-
-        .nav-logo {
-            width: 28px;
-            height: 28px;
-            border-radius: 7px;
-        }
-
-        .nav-logo img {
-            width: 100%;
-            height: 100%;
-            border-radius: 7px;
-        }
-
-        .nav-name {
-            font-size: 15px;
-            font-weight: 600;
-            letter-spacing: -0.01em;
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 32px;
-            list-style: none;
-        }
-
-        .nav-links a {
-            font-size: 14px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--text-primary);
-        }
-
-        .nav-links .btn-sm {
-            font-size: 13px;
-            padding: 7px 16px;
-            background: var(--accent);
-            color: var(--bg-primary);
-            border-radius: 8px;
-            font-weight: 600;
-            transition: background 0.2s, transform 0.15s;
-        }
-
-        .nav-links .btn-sm:hover {
-            background: var(--accent-hover);
-            color: var(--bg-primary);
-            transform: translateY(-1px);
-        }
-
-        /* ── Hero ── */
-        .hero {
-            padding: 180px 0 120px;
-            text-align: center;
-            position: relative;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 600px;
-            height: 500px;
-            background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 16px;
-            border-radius: 100px;
-            border: 1px solid var(--border-accent);
-            background: var(--accent-dim);
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 32px;
-            animation: fadeUp 0.8s var(--ease-out) both;
-        }
-
-        .hero-badge svg {
-            width: 14px;
-            height: 14px;
-        }
-
-        .hero h1 {
-            font-size: clamp(42px, 6vw, 64px);
-            font-weight: 600;
-            letter-spacing: -0.035em;
-            line-height: 1.08;
-            max-width: 700px;
-            margin: 0 auto 24px;
-            animation: fadeUp 0.8s var(--ease-out) 0.1s both;
-        }
-
-        .hero h1 .accent {
-            color: var(--accent);
-        }
-
-        .hero-sub {
-            font-size: 18px;
-            color: var(--text-secondary);
-            max-width: 520px;
-            margin: 0 auto 48px;
-            line-height: 1.7;
-            animation: fadeUp 0.8s var(--ease-out) 0.2s both;
-        }
-
-        .hero-actions {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            animation: fadeUp 0.8s var(--ease-out) 0.3s both;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            font-family: var(--font-body);
-            text-decoration: none;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s var(--ease-out);
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: var(--bg-primary);
-            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3), 0 4px 16px rgba(245, 158, 11, 0.15);
-        }
-
-        .btn-primary:hover {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.4), 0 8px 24px rgba(245, 158, 11, 0.2);
-        }
-
-        .btn-secondary {
-            background: var(--bg-elevated);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: #232326;
-            border-color: rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .btn svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* ── Video ── */
-        .video-section {
-            padding: 0 0 80px;
-            animation: fadeUp 0.8s var(--ease-out) 0.4s both;
-        }
-
-        .video-wrapper {
-            max-width: 800px;
-            margin: 0 auto;
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            background: var(--bg-card);
-            aspect-ratio: 16/9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-
-        .video-wrapper video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .video-placeholder {
-            color: var(--text-tertiary);
-            font-size: 14px;
-            text-align: center;
-        }
-
-        .video-placeholder svg {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 12px;
-            opacity: 0.3;
-        }
-
-        /* ── How it works ── */
-        .how-it-works {
-            border-top: 1px solid var(--border);
-        }
-
-        .section-label {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--accent);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 16px;
-        }
-
-        .section-title {
-            font-size: clamp(28px, 4vw, 38px);
-            font-weight: 600;
-            letter-spacing: -0.03em;
-            margin-bottom: 16px;
-        }
-
-        .section-desc {
-            font-size: 16px;
-            color: var(--text-secondary);
-            max-width: 500px;
-            margin-bottom: 64px;
-            line-height: 1.7;
-        }
-
-        .steps-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-        }
-
-        .step {
-            background: var(--bg-card);
-            padding: 36px 28px;
-            position: relative;
-            transition: background 0.3s;
-        }
-
-        .step:hover {
-            background: var(--bg-elevated);
-        }
-
-        .step-num {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 20px;
-            opacity: 0.7;
-        }
-
-        .step-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: var(--accent-dim);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .step-icon svg {
-            width: 20px;
-            height: 20px;
-            color: var(--accent);
-        }
-
-        .step h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
-        }
-
-        .step p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* ── Inspiration callout ── */
-        .inspiration {
-            margin-top: 56px;
-            display: flex;
-            justify-content: center;
-        }
-
-        .inspiration-card {
-            max-width: 520px;
-            padding: 24px 28px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-left: 3px solid var(--accent);
-            border-radius: 12px;
-            text-align: left;
-        }
-
-        .inspiration-card h4 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
-        }
-
-        .inspiration-card p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-            margin-bottom: 12px;
-        }
-
-        .inspiration-card a {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--accent);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .inspiration-card a:hover {
-            color: var(--accent-hover);
-        }
-
-        .inspiration-card a::after {
-            content: ' →';
-        }
-
-        /* ── Features ── */
-        .features {
-            border-top: 1px solid var(--border);
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-        }
-
-        .feature {
-            background: var(--bg-card);
-            padding: 36px 28px;
-            transition: background 0.3s;
-        }
-
-        .feature:hover {
-            background: var(--bg-elevated);
-        }
-
-        .feature h3 {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .feature h3 span {
-            font-size: 18px;
-        }
-
-        .feature p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        .feature code {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            color: var(--text-primary);
-            background: var(--border);
-            padding: 1px 5px;
-            border-radius: 4px;
-            white-space: nowrap;
-        }
-
-        /* ── Download ── */
-        .download {
-            border-top: 1px solid var(--border);
-            text-align: center;
-        }
-
-        .download-card {
-            max-width: 560px;
-            margin: 0 auto;
-            padding: 56px 48px;
-            background: var(--bg-card);
-            border-radius: 20px;
-            border: 1px solid var(--border);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .download-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 300px;
-            height: 200px;
-            background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .download-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 14px;
-            margin: 0 auto 20px;
-        }
-
-        .download-icon img {
-            width: 100%;
-            height: 100%;
-            border-radius: 14px;
-        }
-
-        .download-card h2 {
-            font-size: 28px;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 12px;
-        }
-
-        .download-card p {
-            font-size: 15px;
-            color: var(--text-secondary);
-            margin-bottom: 32px;
-        }
-
-        .download-card .btn {
-            margin-bottom: 16px;
-        }
-
-        .download-meta {
-            font-size: 13px;
-            color: var(--text-tertiary);
-        }
-
-        .download-meta a {
-            color: var(--text-secondary);
-            text-decoration: underline;
-            text-underline-offset: 3px;
-            transition: color 0.2s;
-        }
-
-        .download-meta a:hover {
-            color: var(--text-primary);
-        }
-
-        .download-update {
-            margin-top: 32px;
-            padding-top: 28px;
-            border-top: 1px solid var(--border);
-            text-align: left;
-        }
-
-        .download-update h3 {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .download-card .download-update p {
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 10px;
-        }
-
-        .download-card .download-update p:last-child {
-            margin-bottom: 0;
-        }
-
-        .download-update strong {
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-
-        /* ── Footer ── */
-        footer {
-            border-top: 1px solid var(--border);
-            padding: 40px 0;
-        }
-
-        footer .container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .footer-left {
-            font-size: 13px;
-            color: var(--text-tertiary);
-        }
-
-        .footer-left a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-left a:hover {
-            color: var(--text-primary);
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 24px;
-            list-style: none;
-        }
-
-        .footer-links a {
-            font-size: 13px;
-            color: var(--text-tertiary);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-links a:hover {
-            color: var(--text-primary);
-        }
-
-        /* ── Animations ── */
-        @keyframes fadeUp {
-            from {
-                opacity: 0;
-                transform: translateY(16px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .reveal {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
-        }
-
-        .reveal.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* ── Responsive ── */
-        @media (max-width: 768px) {
-            section {
-                padding: 72px 0;
-            }
-
-            .hero {
-                padding: 140px 0 80px;
-            }
-
-            .steps-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .hero-actions {
-                flex-direction: column;
-            }
-
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            footer .container {
-                flex-direction: column;
-                gap: 16px;
-                text-align: center;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .steps-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .nav-links .hide-mobile {
-                display: none;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loupe. Point at your Mac app. Your agent fixes it.</title>
+<meta name="description" content="Loupe is a free Mac app. Point at anything in a running Mac app, write what you want changed, and your coding agent gets a note that says exactly what you meant.">
+<meta property="og:title" content="Loupe. Point at your Mac app. Your agent fixes it.">
+<meta property="og:description" content="Leave notes on any Mac app. Your coding agent reads them, asks you when it isn't sure, and tells you when it's done.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://loupemac.app/">
+<meta property="og:image" content="https://loupemac.app/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://loupemac.app/">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js" defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a left-aligned headline over a small Mac desktop you can point at, then short plain sections. */
+:root{
+  --paper:#f6f3ee; --card:#fffdf9; --ink:#14161b; --muted:#625e57; --line:#ded8cd;
+  --coral:#ff5b3a; --coral-text:#c5391b; --coral-dim:#ffe3db; --on-coral:#2a0c05;
+  --q:#3f6fd8; --q-dim:#dfe8fb; --done:#1a8f5e; --done-dim:#d9f3e6; --grey-dim:#e9e5dd;
+  --win:#ffffff; --win-bar:#efece6; --win-line:#dcd7cd; --pop:#fffdf9;
+  --term:#1a1d23; --term-text:#e9e6e0; --term-muted:#9a968f;
+  --wall:linear-gradient(140deg,#ffd3c4 0%,#f4e6d6 45%,#d6e2f6 100%);
+  --menubar:rgba(255,255,255,.55);
+  --shadow:0 24px 50px -22px rgba(20,22,27,.45);
+  --display:"Bricolage Grotesque",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Monaco,"Cascadia Code",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#14161b; --card:#1c1f26; --ink:#f6f3ee; --muted:#a9a59e; --line:#30343d;
+    --coral-text:#ff7a5c; --coral-dim:#45221b;
+    --q:#7aa7ff; --q-dim:#1f2c47; --done:#3ccf8e; --done-dim:#173427; --grey-dim:#30343d;
+    --win:#22252d; --win-bar:#2b2f38; --win-line:#383d48; --pop:#2b2f38;
+    --term:#0e1014; --term-text:#e9e6e0; --term-muted:#8d897f;
+    --wall:linear-gradient(140deg,#3a1f1c 0%,#1b1e27 45%,#172238 100%);
+    --menubar:rgba(20,22,27,.55);
+    --shadow:0 24px 50px -22px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth;scroll-padding-top:16px}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 var(--body)}
+[hidden]{display:none !important}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--coral);outline-offset:3px;border-radius:4px}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:max(20px,env(safe-area-inset-left,0px)) max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;text-wrap:balance;margin:0}
+h2{font-size:clamp(28px,4vw,40px);line-height:1.1;font-weight:700}
+h3{font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.01em}
+p{margin:0}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--coral-text)}
+.lede{color:var(--muted);max-width:60ch}
+section{padding-block:56px}
+section h2{margin-bottom:24px}
+
+/* nav */
+.nav{display:flex;align-items:center;gap:22px;padding-block:18px;font-size:15px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;margin-right:auto}
+.brand img{width:30px;height:30px;display:block}
+.nav a.link{text-decoration:none;color:var(--muted)}
+.nav a.link:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--coral);color:var(--on-coral);font:700 16px/1 var(--body);border:0;border-radius:12px;padding:14px 20px;text-decoration:none;cursor:pointer}
+.btn:hover{filter:brightness(1.06)}
+.btn.small{font-size:14px;padding:9px 14px;border-radius:10px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.star svg{color:var(--coral-text)}
+.star .count{font-variant-numeric:tabular-nums;border-left:1px solid var(--line);padding-left:10px;margin-left:2px}
+.btn.ghost:hover{box-shadow:inset 0 0 0 1px var(--muted);filter:none}
+@media (max-width:640px){.nav a.link{display:none}}
+
+/* hero */
+.top{padding-block:22px 28px}
+.hero{display:grid;gap:18px}
+.hero h1{font-size:clamp(38px,6.4vw,72px);line-height:1;font-weight:700;letter-spacing:-.035em}
+.hero h1 span{display:block}
+.hero h1 span{color:var(--coral-text)}
+.hero .lede{font-size:19px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.cta small{color:var(--muted);font-size:14px}
+
+/* checklist, mirrors the practice in Loupe's setup */
+/* hero animation: a 1000 x 640 scene scaled to fit, driven from one clock */
+.show{margin:0;display:grid;gap:14px}
+.scene{position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,#ffcdbb 0%,#f5e8d9 48%,#d2e0f7 100%);box-shadow:var(--shadow);border:1px solid var(--line);aspect-ratio:1000/640;color:#1d1d1f;font-family:var(--body)}
+.scene.narrow{aspect-ratio:600/640}
+.cam{position:absolute;left:0;top:0;width:1000px;height:640px;transform-origin:0 0}
+.scene *{box-sizing:border-box}
+.s-win{position:absolute;left:60px;top:40px;width:480px;height:415px;background:#fff;border-radius:14px;box-shadow:0 30px 60px -22px rgba(60,30,20,.45),0 0 0 1px rgba(0,0,0,.08)}
+.s-bar{height:30px;display:flex;align-items:center;gap:8px;padding:0 13px;font-size:13px;font-weight:600;color:#6e6e73;border-bottom:1px solid #ececec}
+.s-bar i{width:12px;height:12px;border-radius:50%;background:#dcdcdc}
+.s-bar i:nth-child(1){background:#ff5f57}.s-bar i:nth-child(2){background:#febc2e}.s-bar i:nth-child(3){background:#dcdcdc}
+.s-bar span{margin-left:8px}
+.s-body{padding:22px 26px}
+.s-h{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:38px;width:max-content}
+.s-rows{margin-top:10px}
+.s-row{display:flex;align-items:center;gap:14px;height:52px;border-bottom:1px solid #e6e6e6}
+.s-row svg{width:22px;height:22px;stroke:#8a8a8e;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s-row b{display:block;font-size:15px;font-weight:500;line-height:19px}
+.s-row small{display:block;font-size:12px;color:#8a8a8e;line-height:15px}
+.s-foot{position:absolute;left:26px;right:26px;bottom:20px;height:34px;display:flex;align-items:center;justify-content:space-between;font-size:14px}
+.s-chk{display:flex;align-items:center;gap:8px}
+.s-chk i{width:15px;height:15px;border-radius:4px;background:#e9e9eb;box-shadow:inset 0 0 0 1px #d0d0d4}
+.s-btn{font-size:14px;font-weight:500;background:#ececee;border-radius:7px;height:26px;padding:0 12px;display:flex;align-items:center;color:#1d1d1f;box-shadow:0 0 0 .5px rgba(0,0,0,.12)}
+.s-note.glass{background:rgba(92,88,88,.8)}
+.glass{background:rgba(76,72,72,.56);backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);color:#fff;box-shadow:0 18px 40px -14px rgba(40,20,10,.45),inset 0 0 0 1px rgba(255,255,255,.14)}
+.s-tool{position:absolute;left:142px;top:474px;height:52px;border-radius:16px;display:flex;align-items:center;gap:8px;padding:8px}
+.t-pick{display:flex;align-items:center;gap:6px;height:36px;padding:0 3px 0 1px}
+.t-app{width:34px;height:34px;border-radius:8px;background:linear-gradient(#f6f9fc,#dde8f1);box-shadow:0 0 0 1.5px rgba(255,255,255,.85);display:grid;place-items:center}
+.t-app i{width:18px;height:18px;border-radius:5px;border:1.5px dashed #a9bccb}
+.t-pick svg{width:9px;height:15px;stroke:rgba(255,255,255,.8);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.t-sep{width:1px;height:24px;background:rgba(255,255,255,.22)}
+.t-btn{width:40px;height:36px;display:grid;justify-items:center;align-content:center;gap:2px;font-size:9px;line-height:11px;color:rgba(255,255,255,.72)}
+.t-btn svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.t-btn.off{opacity:.42}
+.s-ring{position:absolute;border:2px solid #ff5b3a;border-radius:6px;box-shadow:0 0 0 1.5px rgba(255,91,58,.34),0 0 0 3px rgba(255,91,58,.16);opacity:0;pointer-events:none}
+.s-label{position:absolute;background:rgba(70,66,66,.62);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 4px 8px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.08),inset 0 0 0 1px rgba(255,255,255,.14);color:#fff;font-size:11px;line-height:14px;font-weight:500;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0}
+.s-label span{font-weight:400}
+.s-badge{position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;background:#d63d1f;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px #fff,0 2px 5px rgba(0,0,0,.3);opacity:0}
+.s-badge svg{width:11px;height:11px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.s-note{position:absolute;left:530px;top:292px;width:340px;border-radius:16px;font-size:12px;line-height:16px;opacity:0;transform-origin:0 0;transition:top .3s cubic-bezier(.2,.8,.2,1)}
+.n-hd{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.14)}
+.n-hd>div{flex:1;min-width:0}
+.n-hd small{display:block;font-size:10px;line-height:13px;color:rgba(255,255,255,.62)}
+.n-hd b{display:block;font-size:13px;line-height:17px;font-weight:600;margin-top:1px}
+.n-hd svg{width:15px;height:15px;stroke:rgba(255,255,255,.8);fill:none;stroke-width:1.4;stroke-linecap:round;flex:none}
+.n-pill{font-size:10px;line-height:13px;font-weight:600;border-radius:99px;padding:3px 8px;white-space:nowrap}
+.n-pill.wait{background:rgba(255,122,92,.18);color:#ff7a5c}
+.n-pill.q{background:rgba(10,132,255,.24);color:#59c2ff}
+.n-pill.done{background:rgba(50,215,75,.2);color:#4ade6a}
+.n-body{padding:14px;display:flex;flex-direction:column;justify-content:flex-end;gap:12px;max-height:214px;overflow:hidden}
+.n-body>div{flex:none}
+.n-who{display:flex;gap:6px;font-size:10px;line-height:13px;margin-bottom:4px;color:rgba(255,255,255,.5)}
+.n-who b{font-weight:600;color:rgba(255,255,255,.72)}
+.n-who em{font-style:normal;margin-left:auto;color:#ff7a5c}
+.n-msg{border-radius:10px;padding:8px 10px;background:rgba(255,91,58,.2);box-shadow:inset 0 0 0 1px rgba(255,91,58,.4)}
+.n-msg.ag{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.n-area{margin:14px 14px 0;min-height:60px;border-radius:8px;background:rgba(22,22,24,.5);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);padding:8px}
+.n-area .ph,.n-field .ph{color:rgba(255,255,255,.45)}
+.n-ft{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px 14px}
+.n-b{font-size:12px;font-weight:500;border-radius:6px;padding:4px 11px;background:rgba(255,255,255,.13);color:rgba(255,255,255,.42);flex:none}
+.n-b.cancel{color:#ff6a4d;background:rgba(255,255,255,.08)}
+.n-b.go{background:#d63d1f;color:#fff}
+.n-send{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid rgba(255,255,255,.14)}
+.n-field{flex:1;height:30px;border-radius:8px;background:rgba(22,22,24,.5);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);padding:0 8px;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.n-foot{display:flex;justify-content:space-between;padding:8px 14px 10px;border-top:1px solid rgba(255,255,255,.14)}
+.n-foot span:first-child{color:rgba(255,80,68,.9)}
+.n-foot span:last-child{color:rgba(255,255,255,.6)}
+.s-agent{position:absolute;left:588px;top:30px;width:342px;height:168px;border-radius:14px;background:#17191e;color:#e9e6e0;box-shadow:0 30px 60px -22px rgba(20,15,30,.6);font:12.5px/1.5 var(--mono);opacity:0}
+.s-agent .s-bar{border-color:#000;color:#8d897f;background:#23262d;border-radius:14px 14px 0 0}
+.s-agent .s-bar i{background:#454a55 !important}
+.a-log{padding:10px 14px;display:grid;gap:3px;position:relative}
+.a-log .idle{position:absolute;left:14px;top:10px;color:#8d897f}
+.a-log div{opacity:0;white-space:nowrap}
+.a-log .you{color:#ff9a84}
+.a-log .ok{color:#7be3b3}
+.s-cursor{position:absolute;left:0;top:0;width:22px;height:30px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));will-change:transform}
+.s-click{position:absolute;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2px solid rgba(255,91,58,.9);opacity:0;pointer-events:none}
+.s-bar2{position:absolute;left:0;bottom:0;height:4px;background:#ff5b3a;width:0}
+.show figcaption{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between}
+.show #show-cap{font:700 clamp(18px,2.4vw,24px)/1.3 var(--display);min-height:1.3em}
+.show .ctl{display:flex;gap:14px;align-items:center;font-size:14px;color:var(--muted)}
+.show .ctl button{font:600 14px/1 var(--body);color:var(--ink);background:transparent;border:0;box-shadow:inset 0 0 0 1px var(--line);border-radius:9px;padding:8px 12px;cursor:pointer}
+.demo{padding-block:64px 56px}
+.demo h2{margin-bottom:6px}
+.demo .sim{font-size:15px;color:var(--muted);margin-bottom:14px}
+.demo .check{max-width:640px;margin-bottom:16px}
+.check{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.check li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:11px;border:1.5px solid transparent;font-size:15.5px;color:var(--muted);min-height:44px}
+.check li .n{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--muted);font-size:12px;font-weight:700;display:grid;place-items:center}
+.check li.now{border-color:var(--coral);background:var(--coral-dim);color:var(--ink);font-weight:600}
+.check li.now .n{background:var(--coral);border-color:var(--coral);color:#fff}
+.check li.ok .n{background:var(--done);border-color:var(--done);color:#fff}
+.check li span.t{flex:1;min-width:0}
+.check .btn{flex:none}
+
+/* the desktop */
+.desk{position:relative;border-radius:18px;background:var(--wall);border:1px solid var(--line);box-shadow:var(--shadow);padding:44px 22px 30px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start;min-height:560px}
+.menubar{position:absolute;inset:0 0 auto 0;height:28px;background:var(--menubar);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:18px 18px 0 0;display:flex;align-items:center;gap:16px;padding:0 14px;font-size:13px;white-space:nowrap;overflow:hidden}
+.menubar b{font-weight:700}
+.menubar .r{margin-left:auto;display:flex;gap:12px;align-items:center}
+.lens{width:16px;height:11px;border-radius:50%;border:2.5px solid currentColor;position:relative;display:inline-block}
+.lens::after{content:"";position:absolute;right:-6px;top:-6px;width:7px;height:7px;border-radius:50%;background:var(--coral);display:none}
+.lens.dot::after{display:block}
+.mac{background:var(--win);border:1px solid var(--win-line);border-radius:12px;box-shadow:0 14px 34px -16px rgba(0,0,0,.5);min-width:0}
+.bar{height:30px;background:var(--win-bar);border-radius:11px 11px 0 0;border-bottom:1px solid var(--win-line);display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.bar i{width:11px;height:11px;border-radius:50%;background:var(--win-line)}
+.bar em{font-style:normal;margin:0 auto;transform:translateX(-25px)}
+.app{padding:22px 22px 26px;display:grid;gap:16px}
+.app .title{font:700 24px/1.2 var(--body);letter-spacing:-.01em;justify-self:start}
+.app .rowline{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.cb{display:inline-flex;align-items:center;gap:8px;font-size:15px}
+.cb i{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:4px;display:grid;place-items:center;font-style:normal;font-size:12px;line-height:1;color:#fff}
+.cb.on i{background:var(--q);border-color:var(--q)}
+.cb.on i::before{content:"✓"}
+.pbtn{margin-left:auto;border:1px solid var(--win-line);background:var(--win-bar);border-radius:8px;padding:6px 14px;font-size:15px;font-weight:600}
+.plan{display:grid;gap:10px;border-top:1px solid var(--win-line);padding-top:16px}
+.plan div{justify-self:start;font-size:15px;color:var(--muted)}
+.noteable{cursor:pointer;border-radius:6px;outline:2px solid transparent;outline-offset:4px;transition:outline-color .12s}
+.noteable:hover,.noteable.hot,.noteable:focus-visible{outline-color:var(--coral)}
+.desk.locked .noteable{cursor:default}
+.desk.locked .noteable:hover:not(.hot){outline-color:transparent}
+.hoverlabel{position:absolute;z-index:4;background:var(--ink);color:var(--paper);font-size:12px;font-weight:600;padding:4px 9px;border-radius:8px;pointer-events:none;white-space:nowrap}
+.pin{position:absolute;z-index:5;width:24px;height:24px;border-radius:50%;border:0;background:var(--coral);color:#fff;font:700 13px/24px var(--body);text-align:center;padding:0;cursor:pointer;box-shadow:0 0 0 2px var(--win),0 3px 8px rgba(0,0,0,.3)}
+.pin.question{background:var(--q)}
+.pin.done{background:var(--done)}
+.pin.dismissed{background:#8a8f98}
+.floater{position:absolute;right:16px;bottom:14px;z-index:5;width:44px;height:44px;border-radius:50%;padding:0;cursor:pointer;background:rgba(255,255,255,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.7);display:grid;place-items:center;box-shadow:0 8px 18px -8px rgba(0,0,0,.45)}
+.floater svg{width:34px;height:30px;display:block}
+.ptool{position:absolute;right:16px;bottom:14px;z-index:5;height:52px;border-radius:16px;display:flex;align-items:center;gap:8px;padding:8px}
+.desk>.mac:not(.term){grid-column:1;grid-row:1}
+.desk>.term{grid-column:2;grid-row:1 / span 2}
+.desk>.floater,.desk>.ptool{position:static;grid-column:1;grid-row:2;justify-self:end;align-self:start}
+.ptool button.t-btn{background:none;border:0;font-family:inherit;cursor:pointer;padding:0}
+.ptool button.t-btn:hover{color:#fff}
+.coach-ring{position:absolute;z-index:8;pointer-events:none;border:2px solid var(--coral);border-radius:12px;animation:coachPulse 1.5s ease-out infinite}
+@keyframes coachPulse{0%{box-shadow:0 0 0 0 rgba(255,91,58,.6)}100%{box-shadow:0 0 0 14px rgba(255,91,58,0)}}
+.coach-tip{position:absolute;z-index:8;pointer-events:none;background:var(--ink);color:var(--paper);font:600 13.5px/1.35 var(--body);padding:8px 12px;border-radius:10px;max-width:230px;box-shadow:0 10px 24px -10px rgba(0,0,0,.6)}
+.coach-tip::after{content:"";position:absolute;left:var(--ax,20px);width:10px;height:10px;background:var(--ink);transform:rotate(45deg);margin-left:-5px}
+.coach-tip.above::after{bottom:-5px}
+.coach-tip.below::after{top:-5px}
+.log .prompt{grid-template-columns:minmax(0,1fr);margin-top:2px}
+.log .prompt button{font:600 13px/1 var(--body);background:var(--coral);color:var(--on-coral);border:0;border-radius:8px;padding:9px 12px;cursor:pointer;justify-self:start}
+@media (prefers-reduced-motion: reduce){.coach-ring{animation:none;box-shadow:0 0 0 4px rgba(255,91,58,.3)}}
+
+/* note window */
+.pop{position:absolute;z-index:6;width:min(330px,calc(100% - 16px));background:var(--pop);border:1px solid var(--win-line);border-radius:14px;box-shadow:0 22px 44px -14px rgba(0,0,0,.55);font-size:14px;display:grid}
+.pop .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--win-line)}
+.pop .hd small{display:block;color:var(--muted);font-size:12px}
+.pop .hd b{font-size:15px}
+.pill{font-size:11.5px;font-weight:700;border-radius:9px;padding:3px 9px;white-space:nowrap;background:var(--coral-dim);color:var(--coral-text)}
+.pill.question{background:var(--q-dim);color:var(--q)}
+.pill.done{background:var(--done-dim);color:var(--done)}
+.pill.dismissed{background:var(--grey-dim);color:var(--muted)}
+.pop .body{padding:12px 14px;display:grid;gap:9px;max-height:236px;overflow-y:auto}
+.who{font-size:12px;color:var(--muted);font-weight:600}
+.msg{border-radius:10px;padding:8px 10px;background:var(--coral-dim);border:1px solid transparent}
+.msg.agent{background:var(--grey-dim)}
+.hint{font-size:12.5px;color:var(--muted)}
+.pop textarea,.pop input{width:100%;font:inherit;color:var(--ink);background:var(--win);border:1px solid var(--win-line);border-radius:10px;padding:9px 10px;resize:none}
+.pop .ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 14px 12px}
+.pop textarea:focus-visible,.pop input:focus-visible{outline-offset:0}
+.pop .ft .chip:first-child:not([data-a]){flex-basis:100%;justify-self:start;width:fit-content;flex-grow:0}
+.chip{font:600 12.5px/1 var(--body);border:0;border-radius:9px;padding:7px 10px;background:var(--coral-dim);color:var(--coral-text);cursor:pointer;text-align:left}
+.mini{font:600 14px/1 var(--body);border:1px solid var(--win-line);background:var(--win-bar);color:var(--ink);border-radius:8px;padding:8px 13px;cursor:pointer}
+.mini.primary{background:var(--coral);border-color:var(--coral);color:var(--on-coral)}
+.mini:disabled{opacity:.45;cursor:default}
+.sp{margin-left:auto}
+
+/* agent window */
+.term{background:var(--term);color:var(--term-text);border-color:#000;margin-top:34px}
+.term .bar{background:#262a32;border-color:#000;color:var(--term-muted)}
+.term .bar i{background:#454a55}
+.log{padding:14px 16px 18px;font:13px/1.55 var(--mono);display:grid;gap:8px;min-height:168px;align-content:start}
+.log div{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px}
+.log .w{color:var(--term-muted)}
+.log .you .w{color:#ff8466}
+.log .idle{color:var(--term-muted);grid-template-columns:minmax(0,1fr)}
+.demo-foot{display:flex;justify-content:flex-end;margin-top:14px;font-size:14px;color:var(--muted)}
+.demo-foot button{font:inherit;color:var(--coral-text);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+@media (max-width:760px){
+  .desk{grid-template-columns:minmax(0,1fr);padding:42px 12px 70px}
+  .desk>.term{margin-top:0;order:3;grid-column:auto;grid-row:auto}
+  .desk>.mac:not(.term){order:1;grid-column:auto;grid-row:auto}
+  .desk>.floater,.desk>.ptool{order:2;grid-column:auto;grid-row:auto}
+  .menubar .hide-s{display:none}
+  .app{padding:18px 16px 20px}
+}
+
+/* plain rows: a term on the left, one sentence on the right */
+.rows{margin:0;display:grid;max-width:780px}
+.rows div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:4px 24px;padding:16px 0;border-top:1px solid var(--line)}
+.rows div:last-child{border-bottom:1px solid var(--line)}
+.rows dt{font-weight:700}
+.rows dd{margin:0;color:var(--muted)}
+@media (max-width:560px){.rows div{grid-template-columns:minmax(0,1fr)}}
+pre{margin:0;font:13px/1.6 var(--mono);background:var(--term);color:var(--term-text);border-radius:12px;padding:16px;overflow-x:auto;white-space:pre}
+code{font-family:var(--mono);font-size:.9em}
+p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
+.more{margin-top:24px;max-width:780px}
+.more summary{cursor:pointer;color:var(--coral-text);font-weight:600;width:fit-content}
+.more pre{margin-top:12px}
+
+/* Agent Link limits: one dark panel, a real switch, and pieces of the real interface */
+.alink{background:#14161b;color:#f6f3ee;border-radius:24px;padding:clamp(24px,4.5vw,52px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px 56px;align-items:center;border:1px solid var(--line)}
+.alink h2{margin:0 0 16px;font-size:clamp(30px,4.2vw,46px);line-height:1.04}
+.link-say p{color:#a9a59e;max-width:42ch;margin-bottom:26px}
+.link-switch{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:14px;align-items:center;justify-content:start;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
+.link-switch .knob{grid-row:1 / span 2;width:58px;height:34px;border-radius:99px;background:#3a3e48;position:relative;transition:background .2s}
+.link-switch .knob::after{content:"";position:absolute;left:3px;top:3px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.4);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.link-switch[aria-checked="true"] .knob{background:#ff5b3a}
+.link-switch[aria-checked="true"] .knob::after{transform:translateX(24px)}
+.link-switch .lbl{font-weight:700;font-size:17px;line-height:1.2}
+.link-switch .state{font-size:14px;color:#a9a59e;line-height:1.3}
+.link-list{list-style:none;margin:0;padding:0;display:grid}
+.link-list li{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;align-items:center;padding:15px 0;border-top:1px solid rgba(255,255,255,.1);font-size:15px;line-height:1.4;color:#a9a59e;transition:opacity .25s}
+.link-list li:first-child{border-top:0}
+.link-list b{display:block;color:#f6f3ee;font-size:17px;font-weight:600}
+.link-list .can{opacity:.38}
+.alink.on .link-list .can{opacity:1}
+.link-list .never b{color:#ff8466}
+.frag{display:flex;align-items:center;gap:8px;justify-content:flex-start;min-height:34px}
+.f-msg{font-size:12px;line-height:16px;color:#fff;border-radius:10px;padding:7px 10px;background:rgba(255,91,58,.2);box-shadow:inset 0 0 0 1px rgba(255,91,58,.4);white-space:nowrap}
+.f-pill{font-size:11px;font-weight:600;border-radius:99px;padding:4px 9px;white-space:nowrap}
+.f-pill.q{background:rgba(10,132,255,.24);color:#59c2ff}
+.f-pill.done{background:rgba(50,215,75,.2);color:#4ade6a}
+.f-badge{width:22px;height:22px;border-radius:50%;background:#2fb457;box-shadow:0 0 0 2px #fff;display:grid;place-items:center;flex:none;margin-left:2px}
+.f-badge svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.f-look{font-size:13px;font-weight:500;color:#1d1d1f;background:#ececee;border-radius:7px;padding:5px 12px;margin-left:4px;outline:2px solid #ff5b3a;outline-offset:2px;box-shadow:0 0 0 6px rgba(255,91,58,.18)}
+.f-lock{width:30px;height:30px;stroke:#ff8466;fill:none;stroke-width:1.7;stroke-linecap:round;margin-left:2px}
+@media (max-width:820px){.alink{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:480px){.link-list li{grid-template-columns:minmax(0,1fr);gap:8px}}
+@media (prefers-reduced-motion: reduce){.link-switch .knob,.link-switch .knob::after,.link-list li{transition:none}}
+
+/* download */
+.get{display:grid;gap:16px;justify-items:start;max-width:780px}
+.get h2{margin:0}
+.get img{width:72px;height:72px}
+.get p{color:var(--muted)}
+.get strong{color:var(--ink)}
+
+footer{border-top:1px solid var(--line);padding-block:32px 48px;font-size:14.5px;color:var(--muted)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between}
+footer nav{display:flex;flex-wrap:wrap;gap:20px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.noteable{transition:none}}
+</style>
 </head>
 <body>
 
-    <!-- Nav -->
-    <nav>
-        <div class="container">
-            <a href="#" class="nav-brand">
-                <div class="nav-logo"><img src="app-icon.png" alt="Loupe icon"></div>
-                <span class="nav-name">Loupe</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="#how-it-works" class="hide-mobile">How it works</a></li>
-                <li><a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">GitHub</a></li>
-                <li><a href="https://github.com/britchie4/Loupe/releases/latest" class="btn-sm">Download</a></li>
-            </ul>
+<header class="wrap nav">
+  <a class="brand" href="#top"><img src="icon.svg" alt="">Loupe</a>
+  <a class="link" href="#how">How it works</a>
+  <a class="link" href="#agents">Agent Link</a>
+  <a class="btn small" href="#download">Download</a>
+</header>
+
+<main id="top">
+  <div class="wrap top">
+  <div class="hero">
+    <h1>Point at your Mac app. <span>Your agent fixes it.</span></h1>
+    <p class="lede">Loupe is a free Mac app I built for working with coding agents. You point at a button, label or menu in a running Mac app, write what you want changed, and your agent gets a note that says exactly which one you meant.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download for Mac</a>
+      <a class="btn ghost star" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>Star on GitHub<span class="count" id="stars" hidden></span></a>
+      <small>Free and open source. Works on macOS 14 and later.</small>
+    </div>
+  </div>
+  </div>
+
+  <div class="wrap">
+    <figure class="show" id="show">
+      <div class="scene" id="scene" role="img" aria-label="Animation: pointing at the Save Plan button in a Mac app with Loupe, leaving a note, the coding agent asking a question, then changing the button and marking the note done.">
+        <div class="cam" id="cam" aria-hidden="true">
+          <div class="s-win">
+            <div class="s-bar"><i></i><i></i><i></i><span>Weekend Planner</span></div>
+            <div class="s-body">
+              <div class="s-h" id="s-title">Weekend Planner</div>
+              <div class="s-rows">
+                <div class="s-row"><svg viewBox="0 0 24 24"><path d="M4 10h16l-2 9H6zM8 10l3-5M16 10l-3-5"/></svg><div><b>Farmers market</b><small>Saturday</small></div></div>
+                <div class="s-row"><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 2-2 7 0 9v9"/></svg><div><b>Lunch with Sam</b><small>Saturday</small></div></div>
+                <div class="s-row"><svg viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="1.8"/><path d="M12 9l-3 3 1 3M12 9l3 3 3 1M12 9l-1 6-3 6M11 15l4 2 1 4"/></svg><div id="s-row"><b>Hike the ridge trail</b><small>Sunday</small></div></div>
+                <div class="s-row"><svg viewBox="0 0 24 24"><path d="M7 9l1.5 12h7L17 9zM7 9a2.5 2.5 0 0 1 2-4 3 3 0 0 1 6 0 2.5 2.5 0 0 1 2 4"/></svg><div><b>Movie night</b><small>Sunday</small></div></div>
+              </div>
+            </div>
+            <div class="s-foot"><span class="s-chk"><i></i>Remind me on Friday</span><span class="s-btn" id="s-btn">Save Plan</span></div>
+          </div>
+
+          <div class="s-agent" id="s-agent">
+            <div class="s-bar"><i></i><i></i><i></i><span>Your coding agent</span></div>
+            <div class="a-log" id="a-log">
+              <div class="idle" id="a-idle">Waiting for notes</div>
+              <div class="you">&gt; <span id="a-say"></span></div>
+              <div>Read note 1: Button “Save Plan”</div>
+              <div>Asked a question on the note</div>
+              <div>Got your answer</div>
+              <div>Edited PlannerView.swift, rebuilt</div>
+              <div class="ok">✓ Marked note 1 done</div>
+            </div>
+          </div>
+
+          <div class="s-tool glass">
+            <div class="t-pick"><span class="t-app"><i></i></span><svg viewBox="0 0 9 15"><path d="M1.5 5.5l3-3 3 3M1.5 9.5l3 3 3-3"/></svg></div>
+            <span class="t-sep"></span>
+            <div class="t-btn off" id="t-copy"><svg viewBox="0 0 24 24"><path d="M9 4.5h7.5a2 2 0 0 1 2 2V15"/><path d="M12 3.2h3.5v2.4H12z"/><rect x="5.5" y="7.5" width="9.5" height="13" rx="2"/></svg>Copy</div>
+            <div class="t-btn off" id="t-clear"><svg viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.7M6.5 6.5l.9 12.2a2 2 0 0 0 2 1.8h5.2a2 2 0 0 0 2-1.8l.9-12.2M10 10v6.5M14 10v6.5"/></svg>Clear</div>
+            <div class="t-btn"><svg viewBox="0 0 24 24"><path d="M10.57 4.94 L10.90 2.87 L13.10 2.87 L13.43 4.94 L15.98 6.00 L17.68 4.76 L19.24 6.32 L18.00 8.02 L19.06 10.57 L21.13 10.90 L21.13 13.10 L19.06 13.43 L18.00 15.98 L19.24 17.68 L17.68 19.24 L15.98 18.00 L13.43 19.06 L13.10 21.13 L10.90 21.13 L10.57 19.06 L8.02 18.00 L6.32 19.24 L4.76 17.68 L6.00 15.98 L4.94 13.43 L2.87 13.10 L2.87 10.90 L4.94 10.57 L6.00 8.02 L4.76 6.32 L6.32 4.76 L8.02 6.00Z"/><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+            <span class="t-sep"></span>
+            <div class="t-btn"><svg viewBox="0 0 24 24" style="stroke-width:1.9"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>Exit</div>
+          </div>
+
+          <div class="s-ring" id="s-ring"></div>
+          <div class="s-label" id="s-label"></div>
+          <div class="s-badge" id="s-badge">1</div>
+
+          <div class="s-note glass" id="s-note">
+            <div class="n-hd"><div><small>Button in Weekend Planner</small><b>“Save Plan”</b></div><span class="n-pill wait" id="n-pill">Waiting</span><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.4v3.6"/><circle cx="8" cy="5" r=".4"/></svg></div>
+            <div id="n-compose">
+              <div class="n-area"><span id="n-typed"></span><span class="ph" id="n-ph">What should change?</span></div>
+              <div class="n-ft"><span class="n-b cancel">Cancel</span><span class="n-b" id="n-add">Add</span></div>
+            </div>
+            <div id="n-thread">
+              <div class="n-body">
+                <div><div class="n-who"><b>You</b>9:41 AM<em>Edit</em></div><div class="n-msg">Make this stand out. It's the main action.</div></div>
+                <div id="n-m2"><div class="n-who"><b>Agent</b>9:41 AM</div><div class="n-msg ag">Happy to. Should I make it the filled, prominent style, or just larger?</div></div>
+                <div id="n-m3"><div class="n-who"><b>You</b>9:41 AM</div><div class="n-msg">Filled and prominent. Coral, please.</div></div>
+                <div id="n-m4"><div class="n-who"><b>Agent</b>9:42 AM</div><div class="n-msg ag">Done. Save Plan is now the filled coral style and one size larger.</div></div>
+              </div>
+              <div class="n-send"><div class="n-field" id="n-field"><span id="n-ans"></span><span class="ph" id="n-aph">Answer the agent</span></div><span class="n-b" id="n-sendb">Send</span></div>
+              <div class="n-foot"><span>Delete note</span><span>Close</span></div>
+            </div>
+          </div>
+
+          <div class="s-click" id="s-click"></div>
+          <svg class="s-cursor" id="s-cursor" viewBox="0 0 22 30"><path d="M2 2v22l5.5-5 3.6 8.4 3.4-1.5-3.6-8.2H19z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
         </div>
+        <div class="s-bar2" id="s-prog"></div>
+      </div>
+      <figcaption>
+        <span id="show-cap">Point at anything in your Mac app.</span>
+        <span class="ctl"><span>An animation of how Loupe works.</span><button type="button" id="show-toggle" aria-pressed="false">Pause</button></span>
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="wrap demo" id="try">
+    <h2>Try it yourself</h2>
+    <p class="sim">This one runs in your browser, so the agent is pretend. On your Mac, it's your own agent that replies.</p>
+    <ol class="check" id="check" aria-live="polite"></ol>
+
+    <div class="desk" id="desk">
+      <div class="menubar" aria-hidden="true">
+        <b>Weekend Planner</b><span class="hide-s">File</span><span class="hide-s">Edit</span><span class="hide-s">View</span><span class="hide-s">Window</span>
+        <span class="r"><span class="lens" id="lens"></span><span>Sat 9:41 AM</span></span>
+      </div>
+
+      <div class="mac">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><em>Practice App</em></div>
+        <div class="app" id="app">
+          <div class="title noteable" tabindex="0" role="button" data-kind="Heading" data-name="Weekend Planner"><span data-text>Weekend Planner</span></div>
+          <div class="rowline">
+            <span class="cb noteable" tabindex="0" role="button" data-kind="Checkbox" data-name="Remind me on Friday"><i></i><span data-text>Remind me on Friday</span></span>
+            <span class="pbtn noteable" tabindex="0" role="button" data-kind="Button" data-name="Save Plan"><span data-text>Save Plan</span></span>
+          </div>
+          <div class="plan">
+            <div class="noteable" tabindex="0" role="button" data-kind="Text" data-name="Saturday: farmers market"><span data-text>Saturday: farmers market</span></div>
+            <div class="noteable" tabindex="0" role="button" data-kind="Text" data-name="Sunday: hike the ridge trail"><span data-text>Sunday: hike the ridge trail</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mac term">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><em>Coding agent (simulated)</em></div>
+        <div class="log" id="log" aria-live="polite"></div>
+      </div>
+
+      <div class="hoverlabel" id="hoverlabel" hidden></div>
+      <div class="pop" id="pop" hidden></div>
+      <button type="button" class="floater" id="floater" aria-label="Open Loupe" title="Click to open."><svg viewBox="16 22 68 56" aria-hidden="true"><defs><linearGradient id="mk-b" x1="22" y1="0" x2="78" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#23262e"/><stop offset=".32" stop-color="#9aa0ab"/><stop offset=".55" stop-color="#6b717e"/><stop offset="1" stop-color="#23262e"/></linearGradient><radialGradient id="mk-g" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="#3a4152"/><stop offset="1" stop-color="#0f1218"/></radialGradient><linearGradient id="mk-r" x1="0" y1="28" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ff8466"/><stop offset="1" stop-color="#ff5b3a"/></linearGradient></defs><path d="M22 44v14a28 16 0 0 0 56 0V44z" fill="url(#mk-b)"/><ellipse cx="50" cy="44" rx="22.5" ry="12.86" fill="url(#mk-g)"/><path fill-rule="evenodd" fill="url(#mk-r)" d="M22 44a28 16 0 1 0 56 0a28 16 0 1 0-56 0zm5.5 0a22.5 12.86 0 1 1 45 0a22.5 12.86 0 1 1-45 0z"/><path d="M33.8 43.4a17.55 10.03 0 0 1 15.1-8.9" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2.8" stroke-linecap="round"/></svg></button>
+      <div class="ptool glass" id="ptool" hidden><div class="t-pick"><span class="t-app"><i></i></span><svg viewBox="0 0 9 15"><path d="M1.5 5.5l3-3 3 3M1.5 9.5l3 3 3-3"/></svg></div>
+            <span class="t-sep"></span>
+            <div class="t-btn off" id="p-copy"><svg viewBox="0 0 24 24"><path d="M9 4.5h7.5a2 2 0 0 1 2 2V15"/><path d="M12 3.2h3.5v2.4H12z"/><rect x="5.5" y="7.5" width="9.5" height="13" rx="2"/></svg>Copy</div>
+            <div class="t-btn off" id="p-clear"><svg viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.7M6.5 6.5l.9 12.2a2 2 0 0 0 2 1.8h5.2a2 2 0 0 0 2-1.8l.9-12.2M10 10v6.5M14 10v6.5"/></svg>Clear</div>
+            <div class="t-btn"><svg viewBox="0 0 24 24"><path d="M10.57 4.94 L10.90 2.87 L13.10 2.87 L13.43 4.94 L15.98 6.00 L17.68 4.76 L19.24 6.32 L18.00 8.02 L19.06 10.57 L21.13 10.90 L21.13 13.10 L19.06 13.43 L18.00 15.98 L19.24 17.68 L17.68 19.24 L15.98 18.00 L13.43 19.06 L13.10 21.13 L10.90 21.13 L10.57 19.06 L8.02 18.00 L6.32 19.24 L4.76 17.68 L6.00 15.98 L4.94 13.43 L2.87 13.10 L2.87 10.90 L4.94 10.57 L6.00 8.02 L4.76 6.32 L6.32 4.76 L8.02 6.00Z"/><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+            <span class="t-sep"></span>
+            <button type="button" class="t-btn" id="p-exit" aria-label="Close Loupe"><svg viewBox="0 0 24 24" style="stroke-width:1.9"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>Exit</button></div>
+      <div class="coach-ring" id="coach-ring" hidden></div>
+      <div class="coach-tip" id="coach-tip" hidden></div>
+    </div>
+    <div class="demo-foot">
+      <button type="button" id="reset">Start over</button>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <dl class="rows">
+        <div><dt>Point</dt><dd>Open Loupe and pick the app you're working on. As you move over it, Loupe highlights whatever is under your pointer and tells you what it is.</dd></div>
+        <div><dt>Leave a note</dt><dd>Click the thing you want changed and write the change in your own words. The note gets a numbered badge so you can see where it is.</dd></div>
+        <div><dt>Hand it off</dt><dd>Tell your agent “Check my Loupe notes”. It reads them, asks you on the note if something isn't clear, makes the change in your code, and turns the badge green.</dd></div>
+        <div><dt>Or copy</dt><dd>If you haven't connected an agent, click Copy and paste your notes into whichever coding agent you use.</dd></div>
+      </dl>
+      <details class="more">
+        <summary>See what a copied note looks like</summary>
+      <pre><code>## App Feedback: Weekend Planner
+
+### 1. AXButton[title="Save Plan"]
+**Location:** AXWindow[title="Weekend Planner"] &gt; AXGroup &gt; AXButton[title="Save Plan"]
+**Search patterns:**
+- `Text\("Save Plan"\)`
+- `Button\("Save Plan"\)`
+- `AXButton.*Save Plan`
+**Feedback:** Make this button bigger</code></pre>
+      </details>
+    </div>
+  </section>
+
+  <section id="agents">
+    <div class="wrap">
+      <div class="alink" id="link">
+        <div class="link-say">
+          <h2>What your agent can and can't do</h2>
+          <p>Agent Link is off until you turn it on in Loupe's Settings. Once it's on, your agent can read the notes you leave and look at the app you picked, so it can check its own work. It can't click or type in any of your apps, and all of this stays on your Mac.</p>
+          <button type="button" class="link-switch" id="link-switch" role="switch" aria-checked="false"><span class="knob" aria-hidden="true"></span><span class="lbl">Agent Link</span><span class="state" id="link-state">Off. Your agent can't see anything.</span></button>
+        </div>
+        <ul class="link-list">
+          <li class="can"><span class="frag" aria-hidden="true"><span class="f-msg">Make this stand out.</span></span><span><b>It reads your notes</b>It gets what you wrote and which button or label you were pointing at.</span></li>
+          <li class="can"><span class="frag" aria-hidden="true"><span class="f-pill q">Question for you</span></span><span><b>It asks you when it isn't sure</b>The question shows up on the note and you answer it there.</span></li>
+          <li class="can"><span class="frag" aria-hidden="true"><span class="f-badge"><svg viewBox="0 0 12 12"><path d="M2.5 6.4l2.4 2.4 4.6-5.2"/></svg></span><span class="f-pill done">Done</span></span><span><b>It tells you when it's done</b>The badge turns green and the note says what it changed.</span></li>
+          <li class="can"><span class="frag" aria-hidden="true"><span class="f-look">Save Plan</span></span><span><b>It looks at the app you picked</b>That's how it checks the change worked.</span></li>
+          <li class="never"><span class="frag" aria-hidden="true"><svg class="f-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg></span><span><b>It can't click or type in your apps</b>Loupe doesn't give agents a way to do that.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap get">
+      <img src="icon.svg" alt="Loupe app icon">
+      <h2>Get Loupe</h2>
+      <p>Free and open source (MIT). Works on macOS 14 and later.</p>
+      <p>Works with Claude Code, Codex, Cursor and Xcode's agents. Loupe walks you through connecting yours the first time you open it.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download .dmg</a>
+        <a class="btn ghost" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">Build from source</a>
+      </div>
+      <p><strong>Permission.</strong> The first time you open Loupe, it asks for permission to read other apps. macOS 27 and later call this “Device Control and Data Access”, and earlier versions call it “Accessibility”.</p>
+      <p><strong>Updating.</strong> If you're on 1.2.1 or later, Loupe updates itself. Choose Check for Updates… from the menu bar icon, or right-click the toolbar. If you're on an older version, quit Loupe, download the latest one, and drag it to Applications. You won't have to grant the permission again.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <a href="https://brentritchie.dev/" target="_blank" rel="noopener">Brent Ritchie</a>. MIT License. Inspired by <a href="https://agentation.dev/" target="_blank" rel="noopener">Agentation</a>, which does this for the web.</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/britchie4/Loupe/releases" target="_blank" rel="noopener">Releases</a>
     </nav>
+  </div>
+</footer>
 
-    <!-- Hero -->
-    <section class="hero">
-        <div class="container">
-            <div class="hero-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                macOS accessibility inspector for AI agents
-            </div>
-            <h1>Target <span class="accent">elements</span>,<br>not screenshots.</h1>
-            <p class="hero-sub">Inspect any UI element in any Mac app. Annotate what you want changed. Copy structured output that AI agents actually understand.</p>
-            <div class="hero-actions">
-                <a href="https://github.com/britchie4/Loupe/releases/latest" class="btn btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download for macOS
-                </a>
-                <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener" class="btn btn-secondary">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                    View source
-                </a>
-            </div>
-        </div>
-    </section>
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var desk = $('#desk'), app = $('#app'), pop = $('#pop'), log = $('#log'), check = $('#check'),
+      hoverlabel = $('#hoverlabel'), lens = $('#lens'), floater = $('#floater'), ptool = $('#ptool'), ring = $('#coach-ring'), tip = $('#coach-tip');
+  var pristine = app.innerHTML;
+  var PHRASE = 'Check my Loupe notes', FOLLOW = 'I answered in Loupe';
+  var SUGGEST = { Heading: 'Make this title blue', Checkbox: 'Tick this by default', Button: 'Make this button bigger' };
+  var COLORS = { blue: '#3f6fd8', red: '#d63d1f', green: '#1a8f5e', coral: '#ff5b3a', orange: '#e07b1f', purple: '#8257d8', pink: '#e0569b', yellow: '#e2b100' };
+  var s, timers = [];
 
-    <!-- Video -->
-    <section class="video-section">
-        <div class="container">
-            <div class="video-wrapper">
-                <video src="demo.mp4" autoplay loop muted playsinline></video>
-            </div>
-        </div>
-    </section>
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function label(el) { return el.dataset.kind + ' “' + el.dataset.name + '”'; }
+  function note() { return s.notes[s.notes.length - 1]; }
 
-    <!-- How it works -->
-    <section class="how-it-works" id="how-it-works">
-        <div class="container">
-            <div class="reveal">
-                <p class="section-label">Workflow</p>
-                <h2 class="section-title">Four steps. Zero screenshots.</h2>
-                <p class="section-desc">Loupe gives your AI assistant structured context about exactly which UI element to target — no more describing buttons in chat.</p>
-            </div>
-            <div class="steps-grid reveal">
-                <div class="step">
-                    <p class="step-num">01</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </div>
-                    <h3>Hover</h3>
-                    <p>Point at any element in any running Mac app. Loupe highlights it with accessibility info in real-time.</p>
-                </div>
-                <div class="step">
-                    <p class="step-num">02</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                    </div>
-                    <h3>Annotate</h3>
-                    <p>Click an element and describe the change you want in plain English. Add multiple annotations.</p>
-                </div>
-                <div class="step">
-                    <p class="step-num">03</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    </div>
-                    <h3>Copy</h3>
-                    <p>One click copies structured output — element roles, hierarchy paths, and search patterns your AI can parse.</p>
-                </div>
-                <div class="step">
-                    <p class="step-num">04</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                    </div>
-                    <h3>Build</h3>
-                    <p>Paste into Claude Code, Cursor, or Codex. Your AI knows exactly which element to change.</p>
-                </div>
-            </div>
-            <div class="inspiration reveal">
-                <div class="inspiration-card">
-                    <h4>Inspired by Agentation</h4>
-                    <p>Agentation pioneered this hover-annotate-copy workflow for web development. Loupe brings the same idea to macOS native apps.</p>
-                    <a href="https://agentation.dev/" target="_blank" rel="noopener">agentation.dev</a>
-                </div>
-            </div>
-        </div>
-    </section>
+  function start() {
+    timers.forEach(clearTimeout); timers = [];
+    app.innerHTML = pristine;
+    $$('.pin', desk).forEach(function (p) { p.remove(); });
+    s = { phase: 'closed', notes: [], target: null, asked: false, open: null };
+    pop.hidden = true; hoverlabel.hidden = true; lens.classList.remove('dot');
+    log.innerHTML = '<div class="idle">Waiting for a note.</div>';
+    floater.hidden = false; ptool.hidden = true;
+    bind();
+    render();
+  }
 
-    <!-- Features -->
-    <section class="features">
-        <div class="container">
-            <div class="reveal">
-                <p class="section-label">Details</p>
-                <h2 class="section-title">Built for precision.</h2>
-                <p class="section-desc">Every feature exists to give AI agents better context.</p>
-            </div>
-            <div class="features-grid reveal">
-                <div class="feature">
-                    <h3><span>&#9678;</span> Any Mac app</h3>
-                    <p>Inspect elements in any running application — native, Electron, Catalyst, anything with accessibility support.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9881;</span> Agent-ready output</h3>
-                    <p>Copies element roles, identifiers, hierarchy paths, and regex search patterns — not just labels.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#8998;</span> Floating toolbar</h3>
-                    <p>Stays out of the way until you need it. Collapses to a minimal icon when not in use.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9733;</span> Multi-annotation</h3>
-                    <p>Annotate multiple elements before copying. Batch your changes and send them all at once.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9783;</span> Hierarchy paths</h3>
-                    <p>See where elements sit in the accessibility tree. AI agents use this to disambiguate similar elements.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9707;</span> macOS native</h3>
-                    <p>Built with SwiftUI. Runs natively on Apple Silicon and Intel. No runtime dependencies.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  function bind() {
+    $$('.noteable', app).forEach(function (el) {
+      el.addEventListener('mouseenter', function () { if (canPoint()) { clearHint(); showHover(el); } });
+      el.addEventListener('mouseleave', function () { hoverlabel.hidden = true; });
+      el.addEventListener('click', function () { pick(el); });
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(el); } });
+    });
+  }
+  function clearHint() { $$('.noteable.hot', app).forEach(function (e) { if (e !== s.target) e.classList.remove('hot'); }); }
+  function canPoint() { return s.phase === 'point' || s.phase === 'write' || s.phase === 'done'; }
+  function openLoupe() { floater.hidden = true; ptool.hidden = false; s.phase = s.notes.length ? 'done' : 'point'; render(); }
+  function closeLoupe() {
+    if (!canPoint()) return;
+    if (s.target) s.target.classList.remove('hot');
+    s.target = null; pop.hidden = true; hoverlabel.hidden = true; ptool.hidden = true; floater.hidden = false; s.phase = 'closed'; render();
+  }
+  /* the hint: a pulsing ring on the next thing to click, with a short line of help */
+  function coach(target, words) {
+    if (!target || target.hidden || !target.getClientRects().length) { ring.hidden = tip.hidden = true; return; }
+    var p = at(target), pad = 5;
+    ring.hidden = tip.hidden = false;
+    ring.style.left = (p.l - pad) + 'px'; ring.style.top = (p.t - pad) + 'px'; ring.style.width = (p.r - p.l + pad * 2) + 'px'; ring.style.height = (p.b - p.t + pad * 2) + 'px';
+    tip.textContent = words;
+    var tw = tip.offsetWidth, th = tip.offsetHeight, cx = (p.l + p.r) / 2;
+    var left = Math.max(8, Math.min(cx - tw / 2, p.w - tw - 8)), above = p.t - pad - th - 12 >= 34;
+    tip.style.left = left + 'px'; tip.style.top = (above ? p.t - pad - th - 12 : p.b + pad + 12) + 'px';
+    tip.className = 'coach-tip ' + (above ? 'above' : 'below');
+    tip.style.setProperty('--ax', Math.max(14, Math.min(cx - left, tw - 14)) + 'px');
+  }
+  function guide() {
+    var p = s.phase, ta = $('#note-text');
+    if (p === 'closed') coach(floater, s.notes.length ? 'Click to open Loupe again.' : 'Start here. Click the Loupe button.');
+    else if (p === 'point') coach($('.pbtn', app) && !$('.pbtn', app).hidden ? $('.pbtn', app) : $('.noteable:not([hidden])', app), 'Loupe is on. Click anything in the app, like this button.');
+    else if (p === 'write') { if (ta && ta.value.trim()) coach($('#add'), 'Click Add to pin your note.'); else coach($('#sug'), 'Write what you want changed, or click this suggestion.'); }
+    else if (p === 'tell') coach($('#tell'), 'Your note is in. Now tell your agent about it.');
+    else if (p === 'question') coach($('.ft', pop), 'The agent asked a question. Pick an answer.');
+    else coach(null);
+  }
 
-    <!-- Agent Link -->
-    <section class="features" id="agent-link">
-        <div class="container">
-            <div class="reveal">
-                <p class="section-label">New in 2.0</p>
-                <h2 class="section-title">Agent Link. Skip the copy and paste.</h2>
-                <p class="section-desc">Turn on Agent Link and your coding agent reads your notes straight from Loupe, asks when something is unclear, and reports back on each one.</p>
-            </div>
-            <div class="features-grid reveal">
-                <div class="feature">
-                    <h3><span>&#9993;</span> Reads your notes</h3>
-                    <p>Say "fix my Loupe notes." Your agent gets every note with its element, location, and search patterns.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#8644;</span> Talks it through</h3>
-                    <p>Agents can ask a question on a note. Answer in Loupe and they pick it up on their next pass.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#10003;</span> Reports back</h3>
-                    <p>Badges turn green when a change is done. Open one to read what changed and where.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9673;</span> Looks, never touches</h3>
-                    <p>Agents can read the app you picked to check their work, but they can never click or type in it.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9881;</span> Works with your agent</h3>
-                    <p>Claude Code, Codex, the Claude desktop app, and any agent that supports MCP. Settings has a copy button for each.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9733;</span> Teach it the workflow</h3>
-                    <p>Install the Loupe notes skill with <code>npx skills add britchie4/Loupe</code> so your agent knows the routine.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  function at(el) { var d = desk.getBoundingClientRect(), r = el.getBoundingClientRect(); return { l: r.left - d.left, t: r.top - d.top, r: r.right - d.left, b: r.bottom - d.top, w: d.width }; }
+  function showHover(el) {
+    var p = at(el); hoverlabel.textContent = label(el); hoverlabel.hidden = false;
+    hoverlabel.style.left = Math.max(6, Math.min(p.l, p.w - hoverlabel.offsetWidth - 6)) + 'px';
+    hoverlabel.style.top = (p.b + 9) + 'px';
+  }
+  function placePop(el) {
+    pop.hidden = false;
+    if (el.hidden) return;
+    var p = at(el), edge = at(app.parentNode).r;
+    pop.style.left = Math.max(8, Math.min(p.l, edge - pop.offsetWidth)) + 'px';
+    pop.style.top = (p.b + 12) + 'px';
+  }
+  function placePins() {
+    s.notes.forEach(function (n) {
+      n.pin.hidden = n.el.hidden; if (n.el.hidden) return;
+      var p = at(n.el); n.pin.style.left = (p.r - 8) + 'px'; n.pin.style.top = (p.t - 14) + 'px';
+    });
+  }
 
-    <!-- Download -->
-    <section class="download">
-        <div class="container">
-            <div class="download-card reveal">
-                <div class="download-icon"><img src="app-icon.png" alt="Loupe icon"></div>
-                <h2>Get Loupe</h2>
-                <p>Free, open source, MIT licensed.<br>macOS 14.0+ (Sonoma) required.</p>
-                <a href="https://github.com/britchie4/Loupe/releases/latest" class="btn btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download .dmg
-                </a>
-                <p class="download-meta">
-                    or <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">build from source</a>
-                </p>
-                <div class="download-update">
-                    <h3>Already using Loupe?</h3>
-                    <p>Version 1.2.1 and later update themselves. Choose <strong>Check for Updates…</strong> from the Loupe menu bar icon, or right-click the toolbar.</p>
-                    <p>On an older version, update by hand once: quit Loupe, download the latest version above, and drag it to Applications, replacing the old copy. Your Accessibility permission carries over.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  function pick(el) {
+    if (!canPoint()) return;
+    clearHint(); hoverlabel.hidden = true;
+    if (s.target) s.target.classList.remove('hot');
+    s.target = el; el.classList.add('hot'); s.phase = 'write'; s.open = null;
+    var sug = SUGGEST[el.dataset.kind] || 'Make this bigger';
+    pop.innerHTML =
+      '<div class="hd"><div><small>' + esc(el.dataset.kind) + ' in Practice App</small><b>“' + esc(el.dataset.name) + '”</b></div></div>' +
+      '<div class="body"><textarea id="note-text" rows="3" placeholder="What should change?" aria-label="What should change?"></textarea></div>' +
+      '<div class="ft"><button type="button" class="chip" id="sug">Try: ' + esc(sug) + '</button><span class="sp"></span>' +
+      '<button type="button" class="mini" id="cancel">Cancel</button><button type="button" class="mini primary" id="add" disabled>Add</button></div>';
+    placePop(el);
+    var ta = $('#note-text'), add = $('#add');
+    ta.addEventListener('input', function () { add.disabled = !ta.value.trim(); guide(); });
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && ta.value.trim()) { e.preventDefault(); addNote(ta.value.trim()); } });
+    $('#sug').addEventListener('click', function () { ta.value = sug; add.disabled = false; ta.focus(); guide(); });
+    $('#cancel').addEventListener('click', function () { el.classList.remove('hot'); s.target = null; pop.hidden = true; s.phase = s.notes.length ? 'done' : 'point'; render(); });
+    add.addEventListener('click', function () { addNote(ta.value.trim()); });
+    if (window.matchMedia('(hover: hover)').matches) ta.focus();
+    render();
+  }
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <div class="footer-left">
-                Built by <a href="https://github.com/britchie4" target="_blank" rel="noopener">Brent Ritchie</a> &middot; MIT License
-            </div>
-            <ul class="footer-links">
-                <li><a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">GitHub</a></li>
-                <li><a href="https://github.com/britchie4/Loupe/releases" target="_blank" rel="noopener">Releases</a></li>
-            </ul>
-        </div>
-    </footer>
+  function addNote(text) {
+    var el = s.target, pin = document.createElement('button');
+    pin.type = 'button'; pin.className = 'pin';
+    var n = { n: s.notes.length + 1, el: el, kind: el.dataset.kind, name: el.dataset.name, msgs: [{ who: 'You', text: text }], status: 'waiting', pin: pin };
+    pin.textContent = n.n; pin.setAttribute('aria-label', 'Note ' + n.n);
+    pin.addEventListener('click', function () { s.open = n; showThread(n); });
+    desk.appendChild(pin); s.notes.push(n);
+    el.classList.remove('hot'); s.target = null; s.phase = 'tell';
+    var idle = $('.idle', log); if (idle) idle.remove();
+    var ask = document.createElement('div'); ask.className = 'prompt'; ask.innerHTML = '<button type="button" id="tell">Say \u201C' + PHRASE + '\u201D</button>';
+    log.appendChild(ask); $('#tell').addEventListener('click', tell);
+    placePins(); showThread(n); render();
+  }
 
-    <!-- Scroll reveal -->
-    <script>
-        const reveals = document.querySelectorAll('.reveal');
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                }
-            });
-        }, { threshold: 0.15 });
-        reveals.forEach(el => observer.observe(el));
-    </script>
+  var PILL = { waiting: 'Waiting', question: 'Question for you', done: 'Done', dismissed: 'Dismissed' };
+  function showThread(n) {
+    var h = '<div class="hd"><div><small>' + esc(n.kind) + ' in Practice App</small><b>“' + esc(n.name) + '”</b></div><span class="pill ' + n.status + '">' + PILL[n.status] + '</span></div><div class="body">';
+    n.msgs.forEach(function (m) { h += '<div><div class="who">' + m.who + '</div><div class="msg' + (m.who === 'You' ? '' : ' agent') + '">' + esc(m.text) + '</div></div>'; });
+    if (n.status === 'waiting' && n.msgs.length === 1) h += '<div class="hint">No agent has picked this up yet.</div>';
+    h += '</div>';
+    if (n === note() && s.phase === 'question') {
+      h += '<div class="ft"><button type="button" class="chip" data-a="Only this one">Only this one</button><button type="button" class="chip" data-a="Everything in the window">Everything in the window</button></div>';
+    } else if (n === note() && s.phase === 'done') {
+      h += '<div class="ft"><span class="sp"></span><button type="button" class="mini" id="again">Leave Another Note</button></div>';
+    }
+    pop.innerHTML = h; placePop(n.el);
+    var body = $('.body', pop); body.scrollTop = body.scrollHeight;
+    $$('[data-a]', pop).forEach(function (b) { b.addEventListener('click', function () { answer(b.dataset.a); }); });
+    var again = $('#again'); if (again) again.addEventListener('click', function () { pop.hidden = true; s.phase = 'point'; render(); });
+  }
 
+  function say(who, text) {
+    var idle = $('.idle', log); if (idle) idle.remove();
+    var d = document.createElement('div'); d.className = who === 'you' ? 'you' : 'ag';
+    d.innerHTML = '<span class="w">' + who + '</span><span>' + esc(text) + '</span>';
+    log.appendChild(d);
+    while (log.children.length > 7) log.removeChild(log.firstChild);
+  }
+  function setStatus(n, st) {
+    n.status = st; n.pin.className = 'pin' + (st === 'waiting' ? '' : ' ' + st);
+    n.pin.textContent = st === 'done' ? '✓' : st === 'question' ? '?' : n.n;
+    lens.classList.toggle('dot', st === 'question');
+  }
+
+  function plan(text) {
+    var t = text.toLowerCase(), ops = [], m;
+    if (/\b(delete|remove|hide|get rid)/.test(t)) return { remove: true };
+    if (/\b(tick|check)\b/.test(t)) ops.push({ only: 'Checkbox', word: 'ticked', say: function (e) { return 'Ticked ' + label(e) + ' by default.'; }, run: function (e) { e.classList.add('on'); } });
+    if (/\b(bigger|larger|big|huge)\b/.test(t)) ops.push({ word: 'bigger', run: function (e) { scale(e, 1.3); } });
+    if (/\b(smaller|small|tiny)\b/.test(t)) ops.push({ word: 'smaller', run: function (e) { scale(e, 0.8); } });
+    Object.keys(COLORS).forEach(function (c) {
+      if (new RegExp('\\b' + c + '\\b').test(t)) ops.push({ word: c, run: function (e) {
+        if (e.classList.contains('pbtn')) { e.style.background = COLORS[c]; e.style.borderColor = COLORS[c]; e.style.color = c === 'yellow' ? '#14161b' : '#fff'; }
+        else e.style.color = COLORS[c];
+      } });
+    });
+    if (/\bbold\b/.test(t)) ops.push({ word: 'bold', run: function (e) { e.style.fontWeight = '800'; } });
+    if (/\bitalics?\b/.test(t)) ops.push({ word: 'italic', run: function (e) { e.style.fontStyle = 'italic'; } });
+    if (/\b(rename|say|call it|reword|change (the |this )?(text|label|title|words|name))\b/.test(t) && (m = text.match(/(?:\bsay|\bto|call it)\s+["“']?([^"”']{1,40}?)["”']?\.?$/i)))
+      return { rename: m[1].trim() };
+    return { ops: ops };
+  }
+  function scale(e, f) { e.style.fontSize = (parseFloat(getComputedStyle(e).fontSize) * f) + 'px'; }
+  function list(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+
+  function tell() {
+    var n = note(); s.phase = 'agent'; var ask = $('.prompt', log); if (ask) ask.remove(); render();
+    say('you', PHRASE);
+    later(function () { say('agent', 'Reading note ' + n.n + ': ' + n.kind + ' “' + n.name + '”. “' + n.msgs[0].text + '”'); }, 700);
+    later(function () {
+      var p = plan(n.msgs[0].text); n.plan = p;
+      var ops = (p.ops || []).filter(function (o) { return !o.only || o.only === n.kind; });
+      n.ops = ops;
+      var styleOnly = ops.length && ops.every(function (o) { return !o.only; });
+      if (styleOnly && !s.asked) {
+        s.asked = true; s.phase = 'question';
+        n.msgs.push({ who: 'Agent (simulated)', text: 'Only this one, or everything in the window?' });
+        setStatus(n, 'question'); say('agent', 'Asked a question on the note.');
+        showThread(n); render();
+      } else finish(n, false);
+    }, 1700);
+  }
+
+  function answer(text) {
+    var n = note(); n.msgs.push({ who: 'You', text: text });
+    setStatus(n, 'waiting'); s.phase = 'agent'; showThread(n); render();
+    later(function () { say('you', FOLLOW); }, 500);
+    later(function () { finish(n, /every|all/i.test(text)); }, 1500);
+  }
+
+  function finish(n, everywhere) {
+    var p = n.plan, el = n.el, reply, st = 'done';
+    if (p.remove) { el.hidden = true; reply = 'Removed ' + label(el) + '.'; }
+    else if (p.rename) { var old = label(el); $('[data-text]', el).textContent = p.rename; el.dataset.name = p.rename; reply = 'Renamed ' + old + ' to “' + p.rename + '”.'; }
+    else if (n.ops.length) {
+      var targets = everywhere ? $$('.noteable', app).filter(function (e) { return !e.hidden; }) : [el];
+      targets.forEach(function (e) { n.ops.forEach(function (o) { o.run(e); }); });
+      reply = n.ops.length === 1 && n.ops[0].say ? n.ops[0].say(el) : 'Made ' + (everywhere ? 'everything in the window' : label(el)) + ' ' + list(n.ops.map(function (o) { return o.word; })) + '.';
+    } else {
+      st = 'dismissed';
+      reply = 'This pretend agent only knows a few changes: bigger, smaller, a color, bold, italic, rename, tick or remove. Your own agent works in your code, so it isn\u2019t limited like this.';
+    }
+    n.msgs.push({ who: 'Agent (simulated)', text: reply });
+    setStatus(n, st); s.phase = 'done';
+    say('agent', st === 'done' ? 'Made the change. Marked note ' + n.n + ' done.' : 'Could not do this one. Replied on note ' + n.n + '.');
+    placePins(); showThread(n); render();
+  }
+
+  function render() {
+    var n = note(), has = s.notes.length > 0, p = s.phase, lines;
+    var zero = p === 'closed' ? 'Click the Loupe button to open it' : 'Open Loupe';
+    var first = p === 'write' ? 'Write what you want changed, then click Add'
+      : p === 'point' ? 'Click something in the practice app'
+      : 'Leave a note';
+    var second = 'Tell the agent \u201C' + PHRASE + '\u201D';
+    var third = p === 'question' ? 'Answer the agent on the note'
+      : p === 'agent' ? 'The agent is working on it'
+      : p === 'done' && n ? (n.status === 'dismissed' ? 'It couldn\u2019t do that one. Try another, or get Loupe' : 'That worked. Leave another note, or get Loupe')
+      : 'Watch the practice app change';
+    var cur = p === 'closed' ? 0 : (p === 'point' || p === 'write') ? 1 : p === 'tell' ? 2 : 3;
+    if (has && (p === 'closed' || p === 'point' || p === 'write')) { zero = 'Open Loupe'; }
+    lines = [zero, first, second, third];
+    check.innerHTML = lines.map(function (t, i) {
+      var ok = i < cur || (p === 'done' && i < 3), now = i === cur;
+      var btn = '';
+      if (now && p === 'done') btn = '<a class="btn small" href="#download">Get Loupe</a>';
+      return '<li class="' + (now ? 'now' : ok ? 'ok' : '') + '"><span class="n">' + (ok && !now ? '\u2713' : i + 1) + '</span><span class="t">' + t + '</span>' + btn + '</li>';
+    }).join('');
+    $('#p-copy').className = $('#p-clear').className = 't-btn' + (has ? '' : ' off');
+    guide();
+    desk.classList.toggle('locked', !canPoint());
+  }
+
+  $('#reset').addEventListener('click', start);
+  floater.addEventListener('click', openLoupe);
+  $('#p-exit').addEventListener('click', closeLoupe);
+  window.addEventListener('resize', function () { placePins(); hoverlabel.hidden = true; if (!pop.hidden) { var n = s.open || (s.phase === 'write' ? null : note()); placePop(s.phase === 'write' && s.target ? s.target : (n ? n.el : app)); } guide(); });
+  start();
+
+  /* hero animation. One clock (Motion when it loads, a plain frame loop otherwise) and a render(t) that draws the scene for any moment t. */
+  (function () {
+    var D = 23, scene = $('#scene'), cam = $('#cam');
+    var el = {}; ['s-title', 's-row', 's-btn', 's-ring', 's-label', 's-badge', 's-note', 'n-pill', 'n-compose', 'n-typed', 'n-ph', 'n-add', 'n-thread', 'n-m2', 'n-m3', 'n-m4', 'n-field', 'n-ans', 'n-aph', 'n-sendb', 't-copy', 't-clear', 's-agent', 'a-say', 's-click', 's-cursor', 's-prog', 'show-cap'].forEach(function (id) { el[id] = document.getElementById(id); });
+    var logLines = $$('#a-log div:not(.idle)'), idle = $('#a-idle');
+    var NOTE = "Make this stand out. It's the main action.", ANS = 'Filled and prominent. Coral, please.', SAY = 'Check my Loupe notes';
+    var CAPS = [[0, 'Point at anything in your Mac app.'], [3.9, 'Write what you want changed.'], [7.1, 'Loupe pins the note to the button.'], [7.8, 'Tell your agent to check your Loupe notes.'], [9.3, 'If it isn\u2019t sure, it asks you on the note.'], [10.7, 'You answer right there.'], [13, 'Your agent makes the change in your code.'], [15.9, 'The badge turns green when it\u2019s done.'], [19, 'Then you point at the next thing.']];
+    var LOG = [7.8, 8.9, 9.25, 13, 13.8, 15.9];
+    var CLICKS = [3.9, 7.0, 9.6, 10.7, 12.5];
+    var scale = 1, narrow = false;
+
+    function cl(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function pr(t, a, b) { return cl((t - a) / (b - a)); }
+    function io(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+    function out(x) { return 1 - Math.pow(1 - x, 3); }
+    function box(n) { var c = cam.getBoundingClientRect(), r = n.getBoundingClientRect(); return { x: (r.left - c.left) / scale, y: (r.top - c.top) / scale, w: r.width / scale, h: r.height / scale }; }
+    function mid(n, fx, fy) { var b = box(n); return [b.x + b.w * (fx == null ? 0.5 : fx), b.y + b.h * (fy == null ? 0.5 : fy)]; }
+
+    /* pointer path: [start, end, target]. It rests between moves. */
+    var PATH = [
+      [0.2, 1.0, function () { return mid(el['s-title'], 0.45, 0.55); }],
+      [1.75, 2.3, function () { return mid(el['s-row'], 0.4, 0.5); }],
+      [2.85, 3.5, function () { return mid(el['s-btn'], 0.8, 0.75); }],
+      [6.5, 6.95, function () { return mid(el['n-add']); }],
+      [7.2, 7.8, function () { return [700, 560]; }],
+      [9.0, 9.5, function () { var q = box(el['s-btn']); return [q.x + q.w - 8, q.y + q.h / 2]; }],
+      [10.1, 10.65, function () { return mid(el['n-field'], 0.3, 0.5); }],
+      [12.2, 12.48, function () { return mid(el['n-sendb']); }],
+      [12.8, 13.4, function () { return [730, 610]; }],
+      [18.6, 19.4, function () { return [640, 360]; }]
+    ];
+    function pointer(t) {
+      var pos = [900, 610];
+      for (var i = 0; i < PATH.length; i++) {
+        var s = PATH[i];
+        if (t >= s[1]) { pos = s[2](); continue; }
+        if (t > s[0]) { var to = s[2](), k = io(pr(t, s[0], s[1])); pos = [pos[0] + (to[0] - pos[0]) * k, pos[1] + (to[1] - pos[1]) * k]; }
+        break;
+      }
+      return pos;
+    }
+    function show(n, on) { var v = on ? '' : 'none'; if (n.style.display !== v) n.style.display = v; }
+    function text(n, s) { if (n.textContent !== s) n.textContent = s; }
+
+    function render(t) {
+      t = ((t % D) + D) % D;
+      var fade = t > D - 0.6 ? 1 - pr(t, D - 0.6, D - 0.1) : pr(t, 0, 0.4);
+      cam.style.opacity = fade;
+
+      /* the button's change, then everything measured from it */
+      var grown = out(pr(t, 15.0, 15.6)), b = el['s-btn'];
+      b.style.background = grown > 0 ? 'rgb(' + Math.round(236 + (255 - 236) * grown) + ',' + Math.round(236 + (91 - 236) * grown) + ',' + Math.round(238 + (58 - 238) * grown) + ')' : '';
+      b.style.color = grown > 0.5 ? '#fff' : '';
+      b.style.height = (26 + 6 * grown) + 'px'; b.style.padding = '0 ' + (12 + 5 * grown) + 'px'; b.style.fontWeight = grown > 0.5 ? '600' : '';
+      b.style.boxShadow = grown > 0.5 ? '0 6px 14px -6px rgba(255,91,58,.8)' : '';
+
+      /* highlight ring and its label */
+      var target = null, label = '', op = 0;
+      if (t >= 1.0 && t < 1.8) { target = el['s-title']; label = 'Heading <span>“Weekend Planner”</span>'; op = Math.min(pr(t, 1.0, 1.12), 1 - pr(t, 1.7, 1.8)); }
+      else if (t >= 2.3 && t < 2.9) { target = el['s-row']; label = 'Text <span>“Hike the ridge trail”</span>'; op = Math.min(pr(t, 2.3, 2.42), 1 - pr(t, 2.8, 2.9)); }
+      else if (t >= 3.5 && t < 7.1) { target = b; label = 'Button <span>“Save Plan”</span>'; op = Math.min(pr(t, 3.5, 3.62), 1 - pr(t, 7.0, 7.1)); }
+      var ring = el['s-ring'], lab = el['s-label'];
+      ring.style.opacity = op; lab.style.opacity = t < 3.9 ? op : 0;
+      if (target) { var r = box(target); ring.style.left = (r.x - 3) + 'px'; ring.style.top = (r.y - 3) + 'px'; ring.style.width = (r.w + 6) + 'px'; ring.style.height = (r.h + 6) + 'px'; if (lab.getAttribute('data-k') !== label) { lab.innerHTML = label; lab.setAttribute('data-k', label); } lab.style.left = (r.x - 3) + 'px'; lab.style.top = (r.y - 3 - 30) + 'px'; }
+
+      /* badge */
+      var bd = el['s-badge'], bb = box(b), isDone = t >= 15.9;
+      var popAt = isDone ? 15.9 : 7.05, k = out(pr(t, popAt, popAt + 0.3));
+      bd.style.opacity = t >= 7.05 ? 1 : 0;
+      bd.style.transform = 'translate(' + (bb.x + bb.w - 18) + 'px,' + (bb.y + bb.h / 2 - 12) + 'px) scale(' + (t >= 7.05 ? 0.5 + 0.5 * k + 0.25 * Math.sin(Math.PI * k) : 0.5) + ')';
+      bd.style.background = isDone ? '#2fb457' : '#d63d1f';
+      var mark = isDone ? '<svg viewBox="0 0 12 12"><path d="M2.5 6.4l2.4 2.4 4.6-5.2"/></svg>' : '1';
+      if (bd.getAttribute('data-k') !== mark) { bd.innerHTML = mark; bd.setAttribute('data-k', mark); }
+      el['t-copy'].className = el['t-clear'].className = 't-btn' + (t >= 7.05 ? '' : ' off');
+
+      /* note window: composer, then the thread */
+      var composing = t >= 3.95 && t < 7.05, thread = t >= 9.65 && t < 18.7, note = el['s-note'];
+      var nk = composing ? Math.min(out(pr(t, 3.95, 4.2)), 1 - pr(t, 6.98, 7.05)) : thread ? Math.min(out(pr(t, 9.65, 9.9)), 1 - pr(t, 18.5, 18.7)) : 0;
+      note.style.opacity = nk; note.style.transform = 'scale(' + (0.94 + 0.06 * nk) + ')';
+      show(el['n-compose'], !thread); show(el['n-thread'], thread);
+      var typed = NOTE.slice(0, Math.round(NOTE.length * pr(t, 4.5, 6.3)));
+      text(el['n-typed'], typed); show(el['n-ph'], !typed); el['n-add'].className = 'n-b' + (typed ? ' go' : '');
+      var ans = t < 12.5 ? ANS.slice(0, Math.round(ANS.length * pr(t, 10.9, 12.1))) : '';
+      text(el['n-ans'], ans); show(el['n-aph'], !ans); text(el['n-aph'], t < 12.5 ? 'Answer the agent' : t < 15.9 ? 'Add more detail' : 'Add a follow-up to reopen');
+      el['n-sendb'].className = 'n-b' + (ans ? ' go' : '');
+      show(el['n-m3'], t >= 12.5); show(el['n-m4'], t >= 16.1);
+      var pill = el['n-pill'];
+      if (!thread || t >= 12.5 && t < 15.9) { pill.className = 'n-pill wait'; text(pill, 'Waiting'); }
+      else if (t < 12.5) { pill.className = 'n-pill q'; text(pill, 'Question for you'); }
+      else { pill.className = 'n-pill done'; text(pill, 'Done'); }
+      show(pill, thread);
+      note.style.top = Math.min(292, 640 - 22 - note.offsetHeight) + 'px';
+
+      /* the agent's side */
+      el['s-agent'].style.opacity = 1; idle.style.opacity = 1 - pr(t, 7.6, 7.8);
+      text(el['a-say'], SAY.slice(0, Math.round(SAY.length * pr(t, 7.9, 8.7))));
+      for (var i = 0; i < logLines.length; i++) logLines[i].style.opacity = pr(t, LOG[i], LOG[i] + 0.25);
+
+      /* pointer and clicks */
+      var p = pointer(t); el['s-cursor'].style.transform = 'translate(' + (p[0] - 2) + 'px,' + (p[1] - 2) + 'px)';
+      var ck = el['s-click'], c = 0, cp = 0;
+      for (var j = 0; j < CLICKS.length; j++) if (t >= CLICKS[j] && t < CLICKS[j] + 0.4) { cp = pr(t, CLICKS[j], CLICKS[j] + 0.4); c = 1 - cp; }
+      ck.style.opacity = c; ck.style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px) scale(' + (0.4 + cp) + ')';
+
+      /* camera: on narrow screens follow the action instead of shrinking everything */
+      var cx = narrow ? 330 * io(pr(t, 3.5, 4.6)) : 0;
+      cam.style.transform = 'scale(' + scale + ') translateX(' + (-cx) + 'px)';
+
+      var cap = CAPS[0][1]; for (var q = 0; q < CAPS.length; q++) if (t >= CAPS[q][0]) cap = CAPS[q][1];
+      text(el['show-cap'], cap);
+      el['s-prog'].style.width = (100 * t / D) + '%';
+    }
+
+    function fit() { var w = scene.clientWidth; narrow = w < 560; scene.classList.toggle('narrow', narrow); scale = w / (narrow ? 600 : 1000); render(now); }
+    var now = 0, ctl = null, paused = false, visible = true, last = 0, raf = 0;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function onTime(v) { now = v; render(v); }
+    function loop(ts) { if (last) now = (now + (ts - last) / 1000) % D; last = ts; render(now); raf = requestAnimationFrame(loop); }
+    function run() {
+      if (paused || !visible) return;
+      if (window.Motion && Motion.animate && !ctl) { try { ctl = Motion.animate(0, D, { duration: D, ease: 'linear', repeat: Infinity, onUpdate: onTime }); } catch (e) { ctl = null; } }
+      if (ctl) ctl.play(); else if (!raf) { last = 0; raf = requestAnimationFrame(loop); }
+    }
+    function halt() { if (ctl) ctl.pause(); if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+    var toggle = $('#show-toggle');
+    function setPaused(v) { paused = v; toggle.textContent = v ? 'Play' : 'Pause'; toggle.setAttribute('aria-pressed', v ? 'true' : 'false'); if (v) halt(); else run(); }
+    toggle.addEventListener('click', function () { setPaused(!paused); });
+    window.addEventListener('resize', fit);
+    if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible) run(); else halt(); }, { threshold: 0.05 }).observe(scene);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) halt(); else run(); });
+    window.loupeShow = { seek: function (v) { now = v; if (ctl) ctl.time = v; render(v); }, pause: function () { setPaused(true); } };
+    if (reduce) { now = 17.2; paused = true; toggle.textContent = 'Play'; toggle.setAttribute('aria-pressed', 'true'); }
+    fit();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  })();
+
+  /* GitHub star count: live from GitHub, and the button stands on its own if it cannot load */
+  (function () {
+    var el = $('#stars'), KEY = 'loupe-stars';
+    function show(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return;
+      el.textContent = n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
+      el.setAttribute('aria-label', n + ' stars'); el.hidden = false;
+    }
+    try { var c = sessionStorage.getItem(KEY); if (c !== null) { show(Number(c)); return; } } catch (e) {}
+    if (!window.fetch) return;
+    fetch('https://api.github.com/repos/britchie4/Loupe', { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) { show(d.stargazers_count); try { sessionStorage.setItem(KEY, String(d.stargazers_count)); } catch (e) {} } })
+      .catch(function () {});
+  })();
+
+  /* Agent Link switch: off until the visitor turns it on, like the real setting */
+  (function () {
+    var box = $('#link'), sw = $('#link-switch'), state = $('#link-state');
+    sw.addEventListener('click', function () {
+      var on = sw.getAttribute('aria-checked') !== 'true';
+      sw.setAttribute('aria-checked', on ? 'true' : 'false'); box.classList.toggle('on', on);
+      state.textContent = on ? 'On. Your agent can do the four things on this list.' : "Off. Your agent can't see anything.";
+    });
+  })();
+
+})();
+</script>
 </body>
 </html>

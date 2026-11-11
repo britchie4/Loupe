@@ -72,6 +72,10 @@ docs/*
 # Un-ignore GitHub Pages landing page
 !docs/index.html
 !docs/app-icon.png
+!docs/icon.svg
+!docs/loupe-note.jpg
+!docs/social-preview.png
+!docs/CNAME
 !docs/demo.mp4
 !docs/demo-thumb.png
 !docs/appcast.xml
