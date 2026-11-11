@@ -1,945 +1,719 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loupe — Target elements, not screenshots.</title>
-    <meta name="description" content="macOS accessibility inspector for AI-agent workflows. Inspect UI elements, annotate changes, copy agent-readable output.">
-    <meta property="og:title" content="Loupe — Target elements, not screenshots.">
-    <meta property="og:description" content="macOS accessibility inspector for AI-agent workflows.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://britchie4.github.io/Loupe/">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        *, *::before, *::after {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --accent: #f59e0b;
-            --accent-hover: #d97706;
-            --accent-dim: rgba(245, 158, 11, 0.12);
-            --accent-glow: rgba(245, 158, 11, 0.06);
-
-            --bg-primary: #0a0a0b;
-            --bg-secondary: #111113;
-            --bg-card: #141416;
-            --bg-elevated: #1c1c1f;
-
-            --border: rgba(255, 255, 255, 0.06);
-            --border-accent: rgba(245, 158, 11, 0.2);
-
-            --text-primary: #fafafa;
-            --text-secondary: #a1a1a6;
-            --text-tertiary: #6b6b70;
-
-            --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
-
-            --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        html {
-            scroll-behavior: smooth;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        body {
-            font-family: var(--font-body);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* ── Grain texture overlay ── */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 9999;
-            opacity: 0.03;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-        }
-
-        /* ── Layout ── */
-        .container {
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-
-        section {
-            padding: 100px 0;
-        }
-
-        /* ── Nav ── */
-        nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            padding: 16px 0;
-            background: rgba(10, 10, 11, 0.8);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border-bottom: 1px solid var(--border);
-        }
-
-        nav .container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .nav-brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-            color: var(--text-primary);
-        }
-
-        .nav-logo {
-            width: 28px;
-            height: 28px;
-            border-radius: 7px;
-        }
-
-        .nav-logo img {
-            width: 100%;
-            height: 100%;
-            border-radius: 7px;
-        }
-
-        .nav-name {
-            font-size: 15px;
-            font-weight: 600;
-            letter-spacing: -0.01em;
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 32px;
-            list-style: none;
-        }
-
-        .nav-links a {
-            font-size: 14px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--text-primary);
-        }
-
-        .nav-links .btn-sm {
-            font-size: 13px;
-            padding: 7px 16px;
-            background: var(--accent);
-            color: var(--bg-primary);
-            border-radius: 8px;
-            font-weight: 600;
-            transition: background 0.2s, transform 0.15s;
-        }
-
-        .nav-links .btn-sm:hover {
-            background: var(--accent-hover);
-            color: var(--bg-primary);
-            transform: translateY(-1px);
-        }
-
-        /* ── Hero ── */
-        .hero {
-            padding: 180px 0 120px;
-            text-align: center;
-            position: relative;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 600px;
-            height: 500px;
-            background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 16px;
-            border-radius: 100px;
-            border: 1px solid var(--border-accent);
-            background: var(--accent-dim);
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 32px;
-            animation: fadeUp 0.8s var(--ease-out) both;
-        }
-
-        .hero-badge svg {
-            width: 14px;
-            height: 14px;
-        }
-
-        .hero h1 {
-            font-size: clamp(42px, 6vw, 64px);
-            font-weight: 600;
-            letter-spacing: -0.035em;
-            line-height: 1.08;
-            max-width: 700px;
-            margin: 0 auto 24px;
-            animation: fadeUp 0.8s var(--ease-out) 0.1s both;
-        }
-
-        .hero h1 .accent {
-            color: var(--accent);
-        }
-
-        .hero-sub {
-            font-size: 18px;
-            color: var(--text-secondary);
-            max-width: 520px;
-            margin: 0 auto 48px;
-            line-height: 1.7;
-            animation: fadeUp 0.8s var(--ease-out) 0.2s both;
-        }
-
-        .hero-actions {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            animation: fadeUp 0.8s var(--ease-out) 0.3s both;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            font-family: var(--font-body);
-            text-decoration: none;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s var(--ease-out);
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: var(--bg-primary);
-            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3), 0 4px 16px rgba(245, 158, 11, 0.15);
-        }
-
-        .btn-primary:hover {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.4), 0 8px 24px rgba(245, 158, 11, 0.2);
-        }
-
-        .btn-secondary {
-            background: var(--bg-elevated);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: #232326;
-            border-color: rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .btn svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* ── Video ── */
-        .video-section {
-            padding: 0 0 80px;
-            animation: fadeUp 0.8s var(--ease-out) 0.4s both;
-        }
-
-        .video-wrapper {
-            max-width: 800px;
-            margin: 0 auto;
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            background: var(--bg-card);
-            aspect-ratio: 16/9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-
-        .video-wrapper video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .video-placeholder {
-            color: var(--text-tertiary);
-            font-size: 14px;
-            text-align: center;
-        }
-
-        .video-placeholder svg {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 12px;
-            opacity: 0.3;
-        }
-
-        /* ── How it works ── */
-        .how-it-works {
-            border-top: 1px solid var(--border);
-        }
-
-        .section-label {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--accent);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 16px;
-        }
-
-        .section-title {
-            font-size: clamp(28px, 4vw, 38px);
-            font-weight: 600;
-            letter-spacing: -0.03em;
-            margin-bottom: 16px;
-        }
-
-        .section-desc {
-            font-size: 16px;
-            color: var(--text-secondary);
-            max-width: 500px;
-            margin-bottom: 64px;
-            line-height: 1.7;
-        }
-
-        .steps-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-        }
-
-        .step {
-            background: var(--bg-card);
-            padding: 36px 28px;
-            position: relative;
-            transition: background 0.3s;
-        }
-
-        .step:hover {
-            background: var(--bg-elevated);
-        }
-
-        .step-num {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 20px;
-            opacity: 0.7;
-        }
-
-        .step-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: var(--accent-dim);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .step-icon svg {
-            width: 20px;
-            height: 20px;
-            color: var(--accent);
-        }
-
-        .step h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
-        }
-
-        .step p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* ── Inspiration callout ── */
-        .inspiration {
-            margin-top: 56px;
-            display: flex;
-            justify-content: center;
-        }
-
-        .inspiration-card {
-            max-width: 520px;
-            padding: 24px 28px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-left: 3px solid var(--accent);
-            border-radius: 12px;
-            text-align: left;
-        }
-
-        .inspiration-card h4 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
-        }
-
-        .inspiration-card p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-            margin-bottom: 12px;
-        }
-
-        .inspiration-card a {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--accent);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .inspiration-card a:hover {
-            color: var(--accent-hover);
-        }
-
-        .inspiration-card a::after {
-            content: ' →';
-        }
-
-        /* ── Features ── */
-        .features {
-            border-top: 1px solid var(--border);
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-        }
-
-        .feature {
-            background: var(--bg-card);
-            padding: 36px 28px;
-            transition: background 0.3s;
-        }
-
-        .feature:hover {
-            background: var(--bg-elevated);
-        }
-
-        .feature h3 {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .feature h3 span {
-            font-size: 18px;
-        }
-
-        .feature p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        .feature code {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            color: var(--text-primary);
-            background: var(--border);
-            padding: 1px 5px;
-            border-radius: 4px;
-            white-space: nowrap;
-        }
-
-        /* ── Download ── */
-        .download {
-            border-top: 1px solid var(--border);
-            text-align: center;
-        }
-
-        .download-card {
-            max-width: 560px;
-            margin: 0 auto;
-            padding: 56px 48px;
-            background: var(--bg-card);
-            border-radius: 20px;
-            border: 1px solid var(--border);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .download-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 300px;
-            height: 200px;
-            background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .download-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 14px;
-            margin: 0 auto 20px;
-        }
-
-        .download-icon img {
-            width: 100%;
-            height: 100%;
-            border-radius: 14px;
-        }
-
-        .download-card h2 {
-            font-size: 28px;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 12px;
-        }
-
-        .download-card p {
-            font-size: 15px;
-            color: var(--text-secondary);
-            margin-bottom: 32px;
-        }
-
-        .download-card .btn {
-            margin-bottom: 16px;
-        }
-
-        .download-meta {
-            font-size: 13px;
-            color: var(--text-tertiary);
-        }
-
-        .download-meta a {
-            color: var(--text-secondary);
-            text-decoration: underline;
-            text-underline-offset: 3px;
-            transition: color 0.2s;
-        }
-
-        .download-meta a:hover {
-            color: var(--text-primary);
-        }
-
-        .download-update {
-            margin-top: 32px;
-            padding-top: 28px;
-            border-top: 1px solid var(--border);
-            text-align: left;
-        }
-
-        .download-update h3 {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .download-card .download-update p {
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 10px;
-        }
-
-        .download-card .download-update p:last-child {
-            margin-bottom: 0;
-        }
-
-        .download-update strong {
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-
-        /* ── Footer ── */
-        footer {
-            border-top: 1px solid var(--border);
-            padding: 40px 0;
-        }
-
-        footer .container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .footer-left {
-            font-size: 13px;
-            color: var(--text-tertiary);
-        }
-
-        .footer-left a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-left a:hover {
-            color: var(--text-primary);
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 24px;
-            list-style: none;
-        }
-
-        .footer-links a {
-            font-size: 13px;
-            color: var(--text-tertiary);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-links a:hover {
-            color: var(--text-primary);
-        }
-
-        /* ── Animations ── */
-        @keyframes fadeUp {
-            from {
-                opacity: 0;
-                transform: translateY(16px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .reveal {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
-        }
-
-        .reveal.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* ── Responsive ── */
-        @media (max-width: 768px) {
-            section {
-                padding: 72px 0;
-            }
-
-            .hero {
-                padding: 140px 0 80px;
-            }
-
-            .steps-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .hero-actions {
-                flex-direction: column;
-            }
-
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            footer .container {
-                flex-direction: column;
-                gap: 16px;
-                text-align: center;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .steps-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .nav-links .hide-mobile {
-                display: none;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loupe. Point at your Mac app. Your agent fixes it.</title>
+<meta name="description" content="Loupe is a free Mac utility. Point at anything in a running Mac app, say what should change, and your coding agent gets a note that says exactly what you pointed at.">
+<meta property="og:title" content="Loupe. Point at your Mac app. Your agent fixes it.">
+<meta property="og:description" content="Leave notes on any Mac app. Your coding agent reads them, asks when unsure, and reports back.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://britchie4.github.io/Loupe/">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a left-aligned headline over a small Mac desktop you can point at, then short plain sections. */
+:root{
+  --paper:#f6f3ee; --card:#fffdf9; --ink:#14161b; --muted:#625e57; --line:#ded8cd;
+  --coral:#ff5b3a; --coral-text:#c5391b; --coral-dim:#ffe3db; --on-coral:#2a0c05;
+  --q:#3f6fd8; --q-dim:#dfe8fb; --done:#1a8f5e; --done-dim:#d9f3e6; --grey-dim:#e9e5dd;
+  --win:#ffffff; --win-bar:#efece6; --win-line:#dcd7cd; --pop:#fffdf9;
+  --term:#1a1d23; --term-text:#e9e6e0; --term-muted:#9a968f;
+  --wall:linear-gradient(140deg,#ffd3c4 0%,#f4e6d6 45%,#d6e2f6 100%);
+  --menubar:rgba(255,255,255,.55);
+  --shadow:0 24px 50px -22px rgba(20,22,27,.45);
+  --display:"Bricolage Grotesque",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Monaco,"Cascadia Code",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#14161b; --card:#1c1f26; --ink:#f6f3ee; --muted:#a9a59e; --line:#30343d;
+    --coral-text:#ff7a5c; --coral-dim:#45221b;
+    --q:#7aa7ff; --q-dim:#1f2c47; --done:#3ccf8e; --done-dim:#173427; --grey-dim:#30343d;
+    --win:#22252d; --win-bar:#2b2f38; --win-line:#383d48; --pop:#2b2f38;
+    --term:#0e1014; --term-text:#e9e6e0; --term-muted:#8d897f;
+    --wall:linear-gradient(140deg,#3a1f1c 0%,#1b1e27 45%,#172238 100%);
+    --menubar:rgba(20,22,27,.55);
+    --shadow:0 24px 50px -22px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth;scroll-padding-top:16px}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 var(--body)}
+[hidden]{display:none !important}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--coral);outline-offset:3px;border-radius:4px}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:max(20px,env(safe-area-inset-left,0px)) max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.02em;text-wrap:balance;margin:0}
+h2{font-size:clamp(28px,4vw,40px);line-height:1.1;font-weight:700}
+h3{font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.01em}
+p{margin:0}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--coral-text)}
+.lede{color:var(--muted);max-width:60ch}
+section{padding-block:72px}
+.sec-head{display:grid;gap:12px;margin-bottom:36px}
+
+/* nav */
+.nav{display:flex;align-items:center;gap:22px;padding-block:18px;font-size:15px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;margin-right:auto}
+.brand img{width:30px;height:30px;display:block}
+.nav a.link{text-decoration:none;color:var(--muted)}
+.nav a.link:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--coral);color:var(--on-coral);font:700 16px/1 var(--body);border:0;border-radius:12px;padding:14px 20px;text-decoration:none;cursor:pointer}
+.btn:hover{filter:brightness(1.06)}
+.btn.small{font-size:14px;padding:9px 14px;border-radius:10px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.ghost:hover{box-shadow:inset 0 0 0 1px var(--muted);filter:none}
+@media (max-width:640px){.nav a.link{display:none}}
+
+/* hero */
+.top{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:28px 44px;align-items:end;padding-block:22px 26px}
+.hero{display:grid;gap:18px}
+.hero h1{font-size:clamp(38px,5.6vw,62px);line-height:1;font-weight:700;letter-spacing:-.035em}
+.hero h1 span{display:block}
+@media (max-width:900px){.top{grid-template-columns:minmax(0,1fr)}}
+.hero h1 span{color:var(--coral-text)}
+.hero .lede{font-size:18px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.cta small{color:var(--muted);font-size:14px}
+
+/* checklist, mirrors the practice in Loupe's setup */
+.demo{padding-block:0 72px}
+.practice-label{display:grid;gap:2px;margin-bottom:10px}
+.practice-label .sim{font-size:14px;color:var(--muted)}
+.check{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.check li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:11px;border:1.5px solid transparent;font-size:15.5px;color:var(--muted);min-height:44px}
+.check li .n{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--muted);font-size:12px;font-weight:700;display:grid;place-items:center}
+.check li.now{border-color:var(--coral);background:var(--coral-dim);color:var(--ink);font-weight:600}
+.check li.now .n{background:var(--coral);border-color:var(--coral);color:#fff}
+.check li.ok .n{background:var(--done);border-color:var(--done);color:#fff}
+.check li span.t{flex:1;min-width:0}
+.check .btn{flex:none}
+
+/* the desktop */
+.desk{position:relative;border-radius:18px;background:var(--wall);border:1px solid var(--line);box-shadow:var(--shadow);padding:44px 22px 30px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start;min-height:560px}
+.menubar{position:absolute;inset:0 0 auto 0;height:28px;background:var(--menubar);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:18px 18px 0 0;display:flex;align-items:center;gap:16px;padding:0 14px;font-size:13px;white-space:nowrap;overflow:hidden}
+.menubar b{font-weight:700}
+.menubar .r{margin-left:auto;display:flex;gap:12px;align-items:center}
+.lens{width:16px;height:11px;border-radius:50%;border:2.5px solid currentColor;position:relative;display:inline-block}
+.lens::after{content:"";position:absolute;right:-6px;top:-6px;width:7px;height:7px;border-radius:50%;background:var(--coral);display:none}
+.lens.dot::after{display:block}
+.mac{background:var(--win);border:1px solid var(--win-line);border-radius:12px;box-shadow:0 14px 34px -16px rgba(0,0,0,.5);min-width:0}
+.bar{height:30px;background:var(--win-bar);border-radius:11px 11px 0 0;border-bottom:1px solid var(--win-line);display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.bar i{width:11px;height:11px;border-radius:50%;background:var(--win-line)}
+.bar em{font-style:normal;margin:0 auto;transform:translateX(-25px)}
+.app{padding:22px 22px 26px;display:grid;gap:16px}
+.app .title{font:700 24px/1.2 var(--body);letter-spacing:-.01em;justify-self:start}
+.app .rowline{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.cb{display:inline-flex;align-items:center;gap:8px;font-size:15px}
+.cb i{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:4px;display:grid;place-items:center;font-style:normal;font-size:12px;line-height:1;color:#fff}
+.cb.on i{background:var(--q);border-color:var(--q)}
+.cb.on i::before{content:"✓"}
+.pbtn{margin-left:auto;border:1px solid var(--win-line);background:var(--win-bar);border-radius:8px;padding:6px 14px;font-size:15px;font-weight:600}
+.plan{display:grid;gap:10px;border-top:1px solid var(--win-line);padding-top:16px}
+.plan div{justify-self:start;font-size:15px;color:var(--muted)}
+.noteable{cursor:pointer;border-radius:6px;outline:2px solid transparent;outline-offset:4px;transition:outline-color .12s}
+.noteable:hover,.noteable.hot,.noteable:focus-visible{outline-color:var(--coral)}
+.desk.locked .noteable{cursor:default}
+.desk.locked .noteable:hover:not(.hot){outline-color:transparent}
+.hoverlabel{position:absolute;z-index:4;background:var(--ink);color:var(--paper);font-size:12px;font-weight:600;padding:4px 9px;border-radius:8px;pointer-events:none;white-space:nowrap}
+.pin{position:absolute;z-index:5;width:24px;height:24px;border-radius:50%;border:0;background:var(--coral);color:#fff;font:700 13px/24px var(--body);text-align:center;padding:0;cursor:pointer;box-shadow:0 0 0 2px var(--win),0 3px 8px rgba(0,0,0,.3)}
+.pin.question{background:var(--q)}
+.pin.done{background:var(--done)}
+.pin.dismissed{background:#8a8f98}
+.floater{position:absolute;right:16px;bottom:14px;width:44px;height:44px;border-radius:50%;background:var(--menubar);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);display:grid;place-items:center;box-shadow:0 6px 16px -6px rgba(0,0,0,.4)}
+.floater img{width:30px;height:30px;display:block}
+
+/* note window */
+.pop{position:absolute;z-index:6;width:min(330px,calc(100% - 16px));background:var(--pop);border:1px solid var(--win-line);border-radius:14px;box-shadow:0 22px 44px -14px rgba(0,0,0,.55);font-size:14px;display:grid}
+.pop .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--win-line)}
+.pop .hd small{display:block;color:var(--muted);font-size:12px}
+.pop .hd b{font-size:15px}
+.pill{font-size:11.5px;font-weight:700;border-radius:9px;padding:3px 9px;white-space:nowrap;background:var(--coral-dim);color:var(--coral-text)}
+.pill.question{background:var(--q-dim);color:var(--q)}
+.pill.done{background:var(--done-dim);color:var(--done)}
+.pill.dismissed{background:var(--grey-dim);color:var(--muted)}
+.pop .body{padding:12px 14px;display:grid;gap:9px;max-height:236px;overflow-y:auto}
+.who{font-size:12px;color:var(--muted);font-weight:600}
+.msg{border-radius:10px;padding:8px 10px;background:var(--coral-dim);border:1px solid transparent}
+.msg.agent{background:var(--grey-dim)}
+.hint{font-size:12.5px;color:var(--muted)}
+.pop textarea,.pop input{width:100%;font:inherit;color:var(--ink);background:var(--win);border:1px solid var(--win-line);border-radius:10px;padding:9px 10px;resize:none}
+.pop .ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 14px 12px}
+.pop textarea:focus-visible,.pop input:focus-visible{outline-offset:0}
+.pop .ft .chip:first-child:not([data-a]){flex-basis:100%;justify-self:start;width:fit-content;flex-grow:0}
+.chip{font:600 12.5px/1 var(--body);border:0;border-radius:9px;padding:7px 10px;background:var(--coral-dim);color:var(--coral-text);cursor:pointer;text-align:left}
+.mini{font:600 14px/1 var(--body);border:1px solid var(--win-line);background:var(--win-bar);color:var(--ink);border-radius:8px;padding:8px 13px;cursor:pointer}
+.mini.primary{background:var(--coral);border-color:var(--coral);color:var(--on-coral)}
+.mini:disabled{opacity:.45;cursor:default}
+.sp{margin-left:auto}
+
+/* agent window */
+.term{background:var(--term);color:var(--term-text);border-color:#000;margin-top:34px}
+.term .bar{background:#262a32;border-color:#000;color:var(--term-muted)}
+.term .bar i{background:#454a55}
+.log{padding:14px 16px 18px;font:13px/1.55 var(--mono);display:grid;gap:8px;min-height:168px;align-content:start}
+.log div{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px}
+.log .w{color:var(--term-muted)}
+.log .you .w{color:#ff8466}
+.log .idle{color:var(--term-muted);grid-template-columns:minmax(0,1fr)}
+.demo-foot{display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;margin-top:14px;font-size:14px;color:var(--muted)}
+.demo-foot button{font:inherit;color:var(--coral-text);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+@media (max-width:760px){
+  .desk{grid-template-columns:minmax(0,1fr);padding:42px 12px 70px}
+  .term{margin-top:0}
+  .menubar .hide-s{display:none}
+  .app{padding:18px 16px 20px}
+}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+.step{display:grid;gap:10px;align-content:start}
+.step .fig{height:118px;border-radius:14px;background:var(--card);border:1px solid var(--line);position:relative;display:grid;place-items:center;margin-bottom:6px}
+.step p{color:var(--muted);font-size:16px}
+.fakebtn{border:1px solid var(--line);border-radius:8px;padding:6px 14px;font-size:15px;font-weight:600;position:relative;outline:2px solid var(--coral);outline-offset:4px}
+.fakebtn .tip{position:absolute;left:-4px;top:calc(100% + 10px);background:var(--ink);color:var(--paper);font-size:11.5px;padding:3px 8px;border-radius:7px;white-space:nowrap}
+.fig .bubble{background:var(--coral-dim);border-radius:10px;padding:8px 12px;font-size:14px;position:relative}
+.fig .spin{position:static;box-shadow:none;cursor:default;display:inline-block;vertical-align:middle}
+.fig .thread{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600}
+.fig .arrow{color:var(--muted)}
+@media (max-width:760px){.steps{grid-template-columns:minmax(0,1fr)}}
+
+/* two ways */
+.ways{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.way{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;display:grid;gap:10px;align-content:start}
+.way p{color:var(--muted);font-size:16px}
+.way .tagline{font-size:13px;font-weight:700;color:var(--coral-text);letter-spacing:.04em;text-transform:uppercase}
+@media (max-width:760px){.ways{grid-template-columns:minmax(0,1fr)}}
+pre{margin:0;font:13px/1.6 var(--mono);background:var(--term);color:var(--term-text);border-radius:12px;padding:16px;overflow-x:auto;white-space:pre}
+code{font-family:var(--mono);font-size:.9em}
+p code,li code{background:var(--grey-dim);padding:1px 6px;border-radius:5px}
+
+/* can / cannot */
+.band{background:var(--card);border-block:1px solid var(--line)}
+.limits{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:40px}
+.limits ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.limits li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;font-size:16.5px}
+.limits li i{font-style:normal;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;background:var(--done);margin-top:2px}
+.limits .no li i{background:var(--ink);color:var(--paper)}
+.limits h3{margin-bottom:16px}
+.limits li span{color:var(--muted)}
+.limits li b{color:var(--ink)}
+@media (max-width:760px){.limits{grid-template-columns:minmax(0,1fr)}}
+
+/* setup */
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.tabs button{font:600 15px/1 var(--body);padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.panel{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;max-width:820px}
+.panel p{color:var(--muted);font-size:16px}
+.codebox{position:relative;min-width:0}
+.codebox pre{padding-right:84px}
+.copy{position:absolute;top:10px;right:10px;font:600 12.5px/1 var(--body);padding:7px 10px;border-radius:8px;border:1px solid #454a55;background:#262a32;color:#e9e6e0;cursor:pointer}
+.setup-steps{margin:0 0 24px;padding:0;list-style:none;display:grid;gap:10px;counter-reset:s;max-width:60ch}
+.setup-steps li{counter-increment:s;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
+.setup-steps li::before{content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--coral);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center}
+.setup-steps span{color:var(--muted)}
+.after{margin-top:28px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px;max-width:820px}
+
+/* download */
+.get{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start}
+.get .box{display:grid;gap:16px;justify-items:start}
+.get .box img{width:84px;height:84px}
+.get .facts{color:var(--muted);font-size:16px;display:grid;gap:6px}
+.update{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;display:grid;gap:12px}
+.update p{color:var(--muted);font-size:16px}
+.update strong{color:var(--ink)}
+@media (max-width:760px){.get{grid-template-columns:minmax(0,1fr)}}
+
+footer{border-top:1px solid var(--line);padding-block:32px 48px;font-size:14.5px;color:var(--muted)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between}
+footer nav{display:flex;flex-wrap:wrap;gap:20px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.noteable{transition:none}}
+</style>
 </head>
 <body>
 
-    <!-- Nav -->
-    <nav>
-        <div class="container">
-            <a href="#" class="nav-brand">
-                <div class="nav-logo"><img src="app-icon.png" alt="Loupe icon"></div>
-                <span class="nav-name">Loupe</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="#how-it-works" class="hide-mobile">How it works</a></li>
-                <li><a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">GitHub</a></li>
-                <li><a href="https://github.com/britchie4/Loupe/releases/latest" class="btn-sm">Download</a></li>
-            </ul>
+<header class="wrap nav">
+  <a class="brand" href="#top"><img src="icon.svg" alt="">Loupe</a>
+  <a class="link" href="#how">How it works</a>
+  <a class="link" href="#agents">What agents can do</a>
+  <a class="link" href="#setup">Set up</a>
+  <a class="btn small" href="#download">Download</a>
+</header>
+
+<main id="top">
+  <div class="wrap top">
+  <div class="hero">
+    <p class="eyebrow">New in Loupe 2.0: Agent Link</p>
+    <h1>Point at your Mac app. <span>Your agent fixes it.</span></h1>
+    <p class="lede">A free Mac utility for people who build Mac apps with a coding agent. Point at any button, label or menu in a running app and say what should change. Your agent gets a note that says exactly what you pointed at.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">View source</a>
+      <small>Free and open source. macOS 14 or later.</small>
+    </div>
+  </div>
+  <div id="try">
+    <div class="practice-label">
+      <p class="eyebrow">Try it here</p>
+      <p class="sim">A simulation in your browser. On your Mac, your own agent does the agent's part.</p>
+    </div>
+    <ol class="check" id="check" aria-live="polite"></ol>
+  </div>
+  </div>
+
+  <div class="wrap demo">
+
+    <div class="desk" id="desk">
+      <div class="menubar" aria-hidden="true">
+        <b>Weekend Planner</b><span class="hide-s">File</span><span class="hide-s">Edit</span><span class="hide-s">View</span><span class="hide-s">Window</span>
+        <span class="r"><span class="lens" id="lens"></span><span>Sat 9:41 AM</span></span>
+      </div>
+
+      <div class="mac">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><em>Practice App</em></div>
+        <div class="app" id="app">
+          <div class="title noteable" tabindex="0" role="button" data-kind="Heading" data-name="Weekend Planner"><span data-text>Weekend Planner</span></div>
+          <div class="rowline">
+            <span class="cb noteable" tabindex="0" role="button" data-kind="Checkbox" data-name="Remind me on Friday"><i></i><span data-text>Remind me on Friday</span></span>
+            <span class="pbtn noteable" tabindex="0" role="button" data-kind="Button" data-name="Save Plan"><span data-text>Save Plan</span></span>
+          </div>
+          <div class="plan">
+            <div class="noteable" tabindex="0" role="button" data-kind="Text" data-name="Saturday: farmers market"><span data-text>Saturday: farmers market</span></div>
+            <div class="noteable" tabindex="0" role="button" data-kind="Text" data-name="Sunday: hike the ridge trail"><span data-text>Sunday: hike the ridge trail</span></div>
+          </div>
         </div>
+      </div>
+
+      <div class="mac term">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><em>Coding agent (simulated)</em></div>
+        <div class="log" id="log" aria-live="polite"></div>
+      </div>
+
+      <div class="hoverlabel" id="hoverlabel" hidden></div>
+      <div class="pop" id="pop" hidden></div>
+      <div class="floater" aria-hidden="true" title="Loupe's floating button"><img src="icon.svg" alt=""></div>
+    </div>
+    <div class="demo-foot">
+      <span>Modelled on the practice in Loupe's own first-run setup.</span>
+      <button type="button" id="reset">Start over</button>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Three steps, on your real apps.</h2>
+        <p class="lede">Loupe sits on your Mac as a small floating button. Open it, pick the app you are working on, and start pointing.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="fig" aria-hidden="true"><span class="fakebtn">Save Plan<span class="tip">Button “Save Plan”</span></span></div>
+          <h3>Point</h3>
+          <p>Move over the app and Loupe highlights what is under your pointer and names it: a button, a menu, a text field. Works in running Mac apps that describe their controls to macOS, which is what accessibility features rely on.</p>
+        </div>
+        <div class="step">
+          <div class="fig" aria-hidden="true"><span class="bubble">Make this button bigger</span></div>
+          <h3>Leave a note</h3>
+          <p>Click and say what should change, in plain words. Each note gets a numbered badge on the app. Leave as many as you like.</p>
+        </div>
+        <div class="step">
+          <div class="fig" aria-hidden="true"><span class="thread"><span class="pin spin">1</span><span class="arrow">→</span><span class="pin spin question">?</span><span class="arrow">→</span><span class="pin spin done">✓</span></span></div>
+          <h3>Your agent takes it from there</h3>
+          <p>Say “Check my Loupe notes” to your agent. It reads each note, asks on the note if something is unclear, changes your code, and marks the note done. The badge turns green.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Two ways your notes reach your agent.</h2>
+      </div>
+      <div class="ways">
+        <div class="way">
+          <p class="tagline">New in 2.0</p>
+          <h3>Agent Link</h3>
+          <p>Skip the pasting. Turn on Agent Link in Loupe's Settings and your agent reads your notes and replies right in Loupe. Questions and answers stay on the note they belong to, and each badge shows where that note stands: waiting, question for you, done.</p>
+        </div>
+        <div class="way">
+          <p class="tagline">Works without Agent Link</p>
+          <h3>Copy and paste</h3>
+          <p>Click Copy in Loupe's toolbar, then paste your notes into Claude Code, Cursor, Codex, or any coding agent. Each note carries what the thing is, where it sits in the window, and search patterns for finding it in your code.</p>
+        </div>
+      </div>
+      <div class="after">
+        <p class="lede">What one copied note looks like:</p>
+        <pre><code>## App Feedback: Weekend Planner
+
+### 1. AXButton[title="Save Plan"]
+**Location:** AXWindow[title="Weekend Planner"] &gt; AXGroup &gt; AXButton[title="Save Plan"]
+**Search patterns:**
+- `Text\("Save Plan"\)`
+- `Button\("Save Plan"\)`
+- `AXButton.*Save Plan`
+**Feedback:** Make this button bigger</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="agents">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Agent Link, plainly</p>
+        <h2>Your agent can look. It can never touch.</h2>
+        <p class="lede">Agent Link is off until you turn it on. It works over a local connection on your Mac, between Loupe and the agent you set up.</p>
+      </div>
+      <div class="limits">
+        <div>
+          <h3>With Agent Link on, your agent can</h3>
+          <ul>
+            <li><i>✓</i><span><b>Read your notes.</b> What you asked for, which control it is about, and where to find it in code.</span></li>
+            <li><i>✓</i><span><b>Ask you a question on a note.</b> You answer in Loupe and the agent picks it up.</span></li>
+            <li><i>✓</i><span><b>Report back.</b> Mark a note done with what it changed, or say why it did not make the change.</span></li>
+            <li><i>✓</i><span><b>Look at the app you picked.</b> It can read what is on screen in that app to check its own work.</span></li>
+          </ul>
+        </div>
+        <div class="no">
+          <h3>It can never</h3>
+          <ul>
+            <li><i>✕</i><span><b>Click or type in your apps.</b> Loupe gives agents nothing that operates your Mac.</span></li>
+            <li><i>✕</i><span><b>Connect before you allow it.</b> Agent Link stays off until you switch it on in Settings.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="setup">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Set up Agent Link</p>
+        <h2>Connect your agent once.</h2>
+        <p class="lede">Loupe's first-run setup walks you through this, with a practice where your connected agent changes a practice app for real. You can also do it any time from Settings.</p>
+      </div>
+      <ol class="setup-steps">
+        <li><span><b>Turn on Agent Link</b> in Loupe's Settings.</span></li>
+        <li><span><b>Add Loupe to your agent.</b> Settings has a button for each agent with the exact command for your copy of Loupe. The standard ones are below.</span></li>
+        <li><span><b>Start a new session in your agent.</b> Sessions that were already open cannot see Loupe.</span></li>
+      </ol>
+
+      <div class="tabs" role="tablist" aria-label="Agent to set up">
+        <button role="tab" aria-selected="true" data-tab="claude">Claude Code</button>
+        <button role="tab" aria-selected="false" data-tab="codex">Codex</button>
+        <button role="tab" aria-selected="false" data-tab="cursor">Cursor</button>
+        <button role="tab" aria-selected="false" data-tab="xcode">Xcode</button>
+        <button role="tab" aria-selected="false" data-tab="other">Other agent</button>
+      </div>
+
+      <div class="panel" data-panel="claude">
+        <p>Paste into Terminal or a Claude Code session. Also covers the Code tab in the Claude desktop app.</p>
+        <div class="codebox"><pre><code>claude mcp add --scope user loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
+      </div>
+      <div class="panel" data-panel="codex" hidden>
+        <p>Paste into Terminal or a Codex chat. Also covers the Codex app and editor plugins.</p>
+        <div class="codebox"><pre><code>codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
+      </div>
+      <div class="panel" data-panel="cursor" hidden>
+        <p>Choose Cursor in Loupe's Settings and click <b>Add to Cursor</b>. Cursor opens and asks you to confirm. Or add Loupe to <code>~/.cursor/mcp.json</code> yourself:</p>
+        <div class="codebox"><pre><code>{
+  "mcpServers": {
+    "loupe": {
+      "command": "/Applications/Loupe.app/Contents/MacOS/Loupe",
+      "args": ["--mcp"]
+    }
+  }
+}</code></pre><button class="copy" type="button">Copy</button></div>
+      </div>
+      <div class="panel" data-panel="xcode" hidden>
+        <p>Xcode runs its own Claude Agent and Codex with separate settings, so Loupe is added there too. Paste each line into Terminal, then start a new conversation in Xcode.</p>
+        <div class="codebox"><pre><code>CLAUDE_CONFIG_DIR="$HOME/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig" claude mcp add --scope user loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
+        <div class="codebox"><pre><code>CODEX_HOME="$HOME/Library/Developer/Xcode/CodingAssistant/codex" codex mcp add loupe -- /Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
+      </div>
+      <div class="panel" data-panel="other" hidden>
+        <p>Any agent that supports MCP (the standard way agents connect to tools) can use Loupe. Choose <b>Other agent</b> in Loupe's Settings, click <b>Copy setup prompt</b>, and paste it into your agent's chat. Or register this yourself as a local server named <code>loupe</code>:</p>
+        <div class="codebox"><pre><code>/Applications/Loupe.app/Contents/MacOS/Loupe --mcp</code></pre><button class="copy" type="button">Copy</button></div>
+        <p>For the Claude desktop app's chat, open Settings, Developer, Edit Config, add Loupe under <code>mcpServers</code> the same way as the Cursor example, then restart the app.</p>
+      </div>
+
+      <div class="after">
+        <h3>Optional: teach your agent the routine</h3>
+        <p class="lede">The Loupe notes skill walks an agent through the routine: pick up a note, ask when unclear, make the change, check it, report back.</p>
+        <div class="codebox"><pre><code>npx skills add britchie4/Loupe</code></pre><button class="copy" type="button">Copy</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="download">
+    <div class="wrap get">
+      <div class="box">
+        <img src="icon.svg" alt="Loupe app icon">
+        <h2>Get Loupe</h2>
+        <div class="facts">
+          <span>Free, open source, MIT licensed.</span>
+          <span>Requires macOS 14 (Sonoma) or later.</span>
+          <span>Needs your permission to read other apps. Loupe asks on first launch. macOS 27 and later call this “Device Control and Data Access”. Earlier versions call it “Accessibility”.</span>
+        </div>
+        <div class="cta">
+          <a class="btn" href="https://github.com/britchie4/Loupe/releases/latest">Download .dmg</a>
+          <a class="btn ghost" href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">Build from source</a>
+        </div>
+      </div>
+      <div class="update">
+        <h3>Already using Loupe?</h3>
+        <p><strong>Version 1.2.1 and later update themselves.</strong> Choose <strong>Check for Updates…</strong> from the Loupe menu bar icon, or right-click the toolbar.</p>
+        <p><strong>On an older version, update by hand once.</strong> Quit Loupe (right-click the toolbar and choose Quit Loupe), download the latest version here, and drag it to Applications, replacing the old copy. Your permission for Loupe carries over.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <a href="https://github.com/britchie4" target="_blank" rel="noopener">Brent Ritchie</a>. MIT License. Inspired by <a href="https://agentation.dev/" target="_blank" rel="noopener">Agentation</a>, which does this for the web.</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/britchie4/Loupe/releases" target="_blank" rel="noopener">Releases</a>
     </nav>
+  </div>
+</footer>
 
-    <!-- Hero -->
-    <section class="hero">
-        <div class="container">
-            <div class="hero-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                macOS accessibility inspector for AI agents
-            </div>
-            <h1>Target <span class="accent">elements</span>,<br>not screenshots.</h1>
-            <p class="hero-sub">Inspect any UI element in any Mac app. Annotate what you want changed. Copy structured output that AI agents actually understand.</p>
-            <div class="hero-actions">
-                <a href="https://github.com/britchie4/Loupe/releases/latest" class="btn btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download for macOS
-                </a>
-                <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener" class="btn btn-secondary">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                    View source
-                </a>
-            </div>
-        </div>
-    </section>
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var desk = $('#desk'), app = $('#app'), pop = $('#pop'), log = $('#log'), check = $('#check'),
+      hoverlabel = $('#hoverlabel'), lens = $('#lens');
+  var pristine = app.innerHTML;
+  var PHRASE = 'Check my Loupe notes', FOLLOW = 'I answered in Loupe';
+  var SUGGEST = { Heading: 'Make this title blue', Checkbox: 'Tick this by default', Button: 'Make this button bigger' };
+  var COLORS = { blue: '#3f6fd8', red: '#d63d1f', green: '#1a8f5e', coral: '#ff5b3a', orange: '#e07b1f', purple: '#8257d8', pink: '#e0569b', yellow: '#e2b100' };
+  var s, timers = [];
 
-    <!-- Video -->
-    <section class="video-section">
-        <div class="container">
-            <div class="video-wrapper">
-                <video src="demo.mp4" autoplay loop muted playsinline></video>
-            </div>
-        </div>
-    </section>
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function label(el) { return el.dataset.kind + ' “' + el.dataset.name + '”'; }
+  function note() { return s.notes[s.notes.length - 1]; }
 
-    <!-- How it works -->
-    <section class="how-it-works" id="how-it-works">
-        <div class="container">
-            <div class="reveal">
-                <p class="section-label">Workflow</p>
-                <h2 class="section-title">Four steps. Zero screenshots.</h2>
-                <p class="section-desc">Loupe gives your AI assistant structured context about exactly which UI element to target — no more describing buttons in chat.</p>
-            </div>
-            <div class="steps-grid reveal">
-                <div class="step">
-                    <p class="step-num">01</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </div>
-                    <h3>Hover</h3>
-                    <p>Point at any element in any running Mac app. Loupe highlights it with accessibility info in real-time.</p>
-                </div>
-                <div class="step">
-                    <p class="step-num">02</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                    </div>
-                    <h3>Annotate</h3>
-                    <p>Click an element and describe the change you want in plain English. Add multiple annotations.</p>
-                </div>
-                <div class="step">
-                    <p class="step-num">03</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    </div>
-                    <h3>Copy</h3>
-                    <p>One click copies structured output — element roles, hierarchy paths, and search patterns your AI can parse.</p>
-                </div>
-                <div class="step">
-                    <p class="step-num">04</p>
-                    <div class="step-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                    </div>
-                    <h3>Build</h3>
-                    <p>Paste into Claude Code, Cursor, or Codex. Your AI knows exactly which element to change.</p>
-                </div>
-            </div>
-            <div class="inspiration reveal">
-                <div class="inspiration-card">
-                    <h4>Inspired by Agentation</h4>
-                    <p>Agentation pioneered this hover-annotate-copy workflow for web development. Loupe brings the same idea to macOS native apps.</p>
-                    <a href="https://agentation.dev/" target="_blank" rel="noopener">agentation.dev</a>
-                </div>
-            </div>
-        </div>
-    </section>
+  function start() {
+    timers.forEach(clearTimeout); timers = [];
+    app.innerHTML = pristine;
+    $$('.pin', desk).forEach(function (p) { p.remove(); });
+    s = { phase: 'point', notes: [], target: null, asked: false, open: null };
+    pop.hidden = true; hoverlabel.hidden = true; lens.classList.remove('dot');
+    log.innerHTML = '<div class="idle">Waiting for a note. Click something in the practice app.</div>';
+    bind();
+    var hintEl = $('.pbtn', app); hintEl.classList.add('hot'); showHover(hintEl);
+    render();
+  }
 
-    <!-- Features -->
-    <section class="features">
-        <div class="container">
-            <div class="reveal">
-                <p class="section-label">Details</p>
-                <h2 class="section-title">Built for precision.</h2>
-                <p class="section-desc">Every feature exists to give AI agents better context.</p>
-            </div>
-            <div class="features-grid reveal">
-                <div class="feature">
-                    <h3><span>&#9678;</span> Any Mac app</h3>
-                    <p>Inspect elements in any running application — native, Electron, Catalyst, anything with accessibility support.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9881;</span> Agent-ready output</h3>
-                    <p>Copies element roles, identifiers, hierarchy paths, and regex search patterns — not just labels.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#8998;</span> Floating toolbar</h3>
-                    <p>Stays out of the way until you need it. Collapses to a minimal icon when not in use.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9733;</span> Multi-annotation</h3>
-                    <p>Annotate multiple elements before copying. Batch your changes and send them all at once.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9783;</span> Hierarchy paths</h3>
-                    <p>See where elements sit in the accessibility tree. AI agents use this to disambiguate similar elements.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9707;</span> macOS native</h3>
-                    <p>Built with SwiftUI. Runs natively on Apple Silicon and Intel. No runtime dependencies.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  function bind() {
+    $$('.noteable', app).forEach(function (el) {
+      el.addEventListener('mouseenter', function () { if (canPoint()) { clearHint(); showHover(el); } });
+      el.addEventListener('mouseleave', function () { hoverlabel.hidden = true; });
+      el.addEventListener('click', function () { pick(el); });
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(el); } });
+    });
+  }
+  function clearHint() { $$('.noteable.hot', app).forEach(function (e) { if (e !== s.target) e.classList.remove('hot'); }); }
+  function canPoint() { return s.phase === 'point' || s.phase === 'write' || s.phase === 'done'; }
 
-    <!-- Agent Link -->
-    <section class="features" id="agent-link">
-        <div class="container">
-            <div class="reveal">
-                <p class="section-label">New in 2.0</p>
-                <h2 class="section-title">Agent Link. Skip the copy and paste.</h2>
-                <p class="section-desc">Turn on Agent Link and your coding agent reads your notes straight from Loupe, asks when something is unclear, and reports back on each one.</p>
-            </div>
-            <div class="features-grid reveal">
-                <div class="feature">
-                    <h3><span>&#9993;</span> Reads your notes</h3>
-                    <p>Say "fix my Loupe notes." Your agent gets every note with its element, location, and search patterns.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#8644;</span> Talks it through</h3>
-                    <p>Agents can ask a question on a note. Answer in Loupe and they pick it up on their next pass.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#10003;</span> Reports back</h3>
-                    <p>Badges turn green when a change is done. Open one to read what changed and where.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9673;</span> Looks, never touches</h3>
-                    <p>Agents can read the app you picked to check their work, but they can never click or type in it.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9881;</span> Works with your agent</h3>
-                    <p>Claude Code, Codex, the Claude desktop app, and any agent that supports MCP. Settings has a copy button for each.</p>
-                </div>
-                <div class="feature">
-                    <h3><span>&#9733;</span> Teach it the workflow</h3>
-                    <p>Install the Loupe notes skill with <code>npx skills add britchie4/Loupe</code> so your agent knows the routine.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  function at(el) { var d = desk.getBoundingClientRect(), r = el.getBoundingClientRect(); return { l: r.left - d.left, t: r.top - d.top, r: r.right - d.left, b: r.bottom - d.top, w: d.width }; }
+  function showHover(el) {
+    var p = at(el); hoverlabel.textContent = label(el); hoverlabel.hidden = false;
+    hoverlabel.style.left = Math.max(6, Math.min(p.l, p.w - hoverlabel.offsetWidth - 6)) + 'px';
+    hoverlabel.style.top = (p.b + 9) + 'px';
+  }
+  function placePop(el) {
+    pop.hidden = false;
+    if (el.hidden) return;
+    var p = at(el), edge = at(app.parentNode).r;
+    pop.style.left = Math.max(8, Math.min(p.l, edge - pop.offsetWidth)) + 'px';
+    pop.style.top = (p.b + 12) + 'px';
+  }
+  function placePins() {
+    s.notes.forEach(function (n) {
+      n.pin.hidden = n.el.hidden; if (n.el.hidden) return;
+      var p = at(n.el); n.pin.style.left = (p.r - 8) + 'px'; n.pin.style.top = (p.t - 14) + 'px';
+    });
+  }
 
-    <!-- Download -->
-    <section class="download">
-        <div class="container">
-            <div class="download-card reveal">
-                <div class="download-icon"><img src="app-icon.png" alt="Loupe icon"></div>
-                <h2>Get Loupe</h2>
-                <p>Free, open source, MIT licensed.<br>macOS 14.0+ (Sonoma) required.</p>
-                <a href="https://github.com/britchie4/Loupe/releases/latest" class="btn btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download .dmg
-                </a>
-                <p class="download-meta">
-                    or <a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">build from source</a>
-                </p>
-                <div class="download-update">
-                    <h3>Already using Loupe?</h3>
-                    <p>Version 1.2.1 and later update themselves. Choose <strong>Check for Updates…</strong> from the Loupe menu bar icon, or right-click the toolbar.</p>
-                    <p>On an older version, update by hand once: quit Loupe, download the latest version above, and drag it to Applications, replacing the old copy. Your Accessibility permission carries over.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  function pick(el) {
+    if (!canPoint()) return;
+    clearHint(); hoverlabel.hidden = true;
+    if (s.target) s.target.classList.remove('hot');
+    s.target = el; el.classList.add('hot'); s.phase = 'write'; s.open = null;
+    var sug = SUGGEST[el.dataset.kind] || 'Make this bigger';
+    pop.innerHTML =
+      '<div class="hd"><div><small>' + esc(el.dataset.kind) + ' in Practice App</small><b>“' + esc(el.dataset.name) + '”</b></div></div>' +
+      '<div class="body"><textarea id="note-text" rows="3" placeholder="What should change?" aria-label="What should change?"></textarea></div>' +
+      '<div class="ft"><button type="button" class="chip" id="sug">Try: ' + esc(sug) + '</button><span class="sp"></span>' +
+      '<button type="button" class="mini" id="cancel">Cancel</button><button type="button" class="mini primary" id="add" disabled>Add</button></div>';
+    placePop(el);
+    var ta = $('#note-text'), add = $('#add');
+    ta.addEventListener('input', function () { add.disabled = !ta.value.trim(); });
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && ta.value.trim()) { e.preventDefault(); addNote(ta.value.trim()); } });
+    $('#sug').addEventListener('click', function () { ta.value = sug; add.disabled = false; ta.focus(); });
+    $('#cancel').addEventListener('click', function () { el.classList.remove('hot'); s.target = null; pop.hidden = true; s.phase = s.notes.length ? 'done' : 'point'; render(); });
+    add.addEventListener('click', function () { addNote(ta.value.trim()); });
+    if (window.matchMedia('(hover: hover)').matches) ta.focus();
+    render();
+  }
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <div class="footer-left">
-                Built by <a href="https://github.com/britchie4" target="_blank" rel="noopener">Brent Ritchie</a> &middot; MIT License
-            </div>
-            <ul class="footer-links">
-                <li><a href="https://github.com/britchie4/Loupe" target="_blank" rel="noopener">GitHub</a></li>
-                <li><a href="https://github.com/britchie4/Loupe/releases" target="_blank" rel="noopener">Releases</a></li>
-            </ul>
-        </div>
-    </footer>
+  function addNote(text) {
+    var el = s.target, pin = document.createElement('button');
+    pin.type = 'button'; pin.className = 'pin';
+    var n = { n: s.notes.length + 1, el: el, kind: el.dataset.kind, name: el.dataset.name, msgs: [{ who: 'You', text: text }], status: 'waiting', pin: pin };
+    pin.textContent = n.n; pin.setAttribute('aria-label', 'Note ' + n.n);
+    pin.addEventListener('click', function () { s.open = n; showThread(n); });
+    desk.appendChild(pin); s.notes.push(n);
+    el.classList.remove('hot'); s.target = null; s.phase = 'tell';
+    placePins(); showThread(n); render();
+  }
 
-    <!-- Scroll reveal -->
-    <script>
-        const reveals = document.querySelectorAll('.reveal');
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                }
-            });
-        }, { threshold: 0.15 });
-        reveals.forEach(el => observer.observe(el));
-    </script>
+  var PILL = { waiting: 'Waiting', question: 'Question for you', done: 'Done', dismissed: 'Dismissed' };
+  function showThread(n) {
+    var h = '<div class="hd"><div><small>' + esc(n.kind) + ' in Practice App</small><b>“' + esc(n.name) + '”</b></div><span class="pill ' + n.status + '">' + PILL[n.status] + '</span></div><div class="body">';
+    n.msgs.forEach(function (m) { h += '<div><div class="who">' + m.who + '</div><div class="msg' + (m.who === 'You' ? '' : ' agent') + '">' + esc(m.text) + '</div></div>'; });
+    if (n.status === 'waiting' && n.msgs.length === 1) h += '<div class="hint">No agent has picked this up yet.</div>';
+    h += '</div>';
+    if (n === note() && s.phase === 'question') {
+      h += '<div class="ft"><button type="button" class="chip" data-a="Only this one">Only this one</button><button type="button" class="chip" data-a="Everything in the window">Everything in the window</button></div>';
+    } else if (n === note() && s.phase === 'done') {
+      h += '<div class="ft"><span class="sp"></span><button type="button" class="mini" id="again">Leave Another Note</button></div>';
+    }
+    pop.innerHTML = h; placePop(n.el);
+    var body = $('.body', pop); body.scrollTop = body.scrollHeight;
+    $$('[data-a]', pop).forEach(function (b) { b.addEventListener('click', function () { answer(b.dataset.a); }); });
+    var again = $('#again'); if (again) again.addEventListener('click', function () { pop.hidden = true; render(); });
+  }
 
+  function say(who, text) {
+    var idle = $('.idle', log); if (idle) idle.remove();
+    var d = document.createElement('div'); d.className = who === 'you' ? 'you' : 'ag';
+    d.innerHTML = '<span class="w">' + who + '</span><span>' + esc(text) + '</span>';
+    log.appendChild(d);
+    while (log.children.length > 7) log.removeChild(log.firstChild);
+  }
+  function setStatus(n, st) {
+    n.status = st; n.pin.className = 'pin' + (st === 'waiting' ? '' : ' ' + st);
+    n.pin.textContent = st === 'done' ? '✓' : st === 'question' ? '?' : n.n;
+    lens.classList.toggle('dot', st === 'question');
+  }
+
+  function plan(text) {
+    var t = text.toLowerCase(), ops = [], m;
+    if (/\b(delete|remove|hide|get rid)/.test(t)) return { remove: true };
+    if (/\b(tick|check)\b/.test(t)) ops.push({ only: 'Checkbox', word: 'ticked', say: function (e) { return 'Ticked ' + label(e) + ' by default.'; }, run: function (e) { e.classList.add('on'); } });
+    if (/\b(bigger|larger|big|huge)\b/.test(t)) ops.push({ word: 'bigger', run: function (e) { scale(e, 1.3); } });
+    if (/\b(smaller|small|tiny)\b/.test(t)) ops.push({ word: 'smaller', run: function (e) { scale(e, 0.8); } });
+    Object.keys(COLORS).forEach(function (c) {
+      if (new RegExp('\\b' + c + '\\b').test(t)) ops.push({ word: c, run: function (e) {
+        if (e.classList.contains('pbtn')) { e.style.background = COLORS[c]; e.style.borderColor = COLORS[c]; e.style.color = c === 'yellow' ? '#14161b' : '#fff'; }
+        else e.style.color = COLORS[c];
+      } });
+    });
+    if (/\bbold\b/.test(t)) ops.push({ word: 'bold', run: function (e) { e.style.fontWeight = '800'; } });
+    if (/\bitalics?\b/.test(t)) ops.push({ word: 'italic', run: function (e) { e.style.fontStyle = 'italic'; } });
+    if (/\b(rename|say|call it|reword|change (the |this )?(text|label|title|words|name))\b/.test(t) && (m = text.match(/(?:\bsay|\bto|call it)\s+["“']?([^"”']{1,40}?)["”']?\.?$/i)))
+      return { rename: m[1].trim() };
+    return { ops: ops };
+  }
+  function scale(e, f) { e.style.fontSize = (parseFloat(getComputedStyle(e).fontSize) * f) + 'px'; }
+  function list(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+
+  function tell() {
+    var n = note(); s.phase = 'agent'; render();
+    say('you', PHRASE);
+    later(function () { say('agent', 'Reading note ' + n.n + ': ' + n.kind + ' “' + n.name + '”. “' + n.msgs[0].text + '”'); }, 700);
+    later(function () {
+      var p = plan(n.msgs[0].text); n.plan = p;
+      var ops = (p.ops || []).filter(function (o) { return !o.only || o.only === n.kind; });
+      n.ops = ops;
+      var styleOnly = ops.length && ops.every(function (o) { return !o.only; });
+      if (styleOnly && !s.asked) {
+        s.asked = true; s.phase = 'question';
+        n.msgs.push({ who: 'Agent (simulated)', text: 'Only this one, or everything in the window?' });
+        setStatus(n, 'question'); say('agent', 'Asked a question on the note.');
+        showThread(n); render();
+      } else finish(n, false);
+    }, 1700);
+  }
+
+  function answer(text) {
+    var n = note(); n.msgs.push({ who: 'You', text: text });
+    setStatus(n, 'waiting'); s.phase = 'agent'; showThread(n); render();
+    later(function () { say('you', FOLLOW); }, 500);
+    later(function () { finish(n, /every|all/i.test(text)); }, 1500);
+  }
+
+  function finish(n, everywhere) {
+    var p = n.plan, el = n.el, reply, st = 'done';
+    if (p.remove) { el.hidden = true; reply = 'Removed ' + label(el) + '.'; }
+    else if (p.rename) { var old = label(el); $('[data-text]', el).textContent = p.rename; el.dataset.name = p.rename; reply = 'Renamed ' + old + ' to “' + p.rename + '”.'; }
+    else if (n.ops.length) {
+      var targets = everywhere ? $$('.noteable', app).filter(function (e) { return !e.hidden; }) : [el];
+      targets.forEach(function (e) { n.ops.forEach(function (o) { o.run(e); }); });
+      reply = n.ops.length === 1 && n.ops[0].say ? n.ops[0].say(el) : 'Made ' + (everywhere ? 'everything in the window' : label(el)) + ' ' + list(n.ops.map(function (o) { return o.word; })) + '.';
+    } else {
+      st = 'dismissed';
+      reply = 'This demo agent only knows a few changes: bigger, smaller, a color, bold, italic, rename, tick, remove. Your own agent works in your code, so it is not limited like this.';
+    }
+    n.msgs.push({ who: 'Agent (simulated)', text: reply });
+    setStatus(n, st); s.phase = 'done';
+    say('agent', st === 'done' ? 'Made the change. Marked note ' + n.n + ' done.' : 'Could not do this one. Replied on note ' + n.n + '.');
+    placePins(); showThread(n); render();
+  }
+
+  function render() {
+    var n = note(), has = s.notes.length > 0, p = s.phase, lines;
+    var first = p === 'write' ? 'Say what should change, then click Add'
+      : p === 'point' ? 'Click something in the practice app'
+      : 'Leave a note';
+    var second = 'Tell the agent “' + PHRASE + '”';
+    var third = p === 'question' ? 'Answer the agent in the note'
+      : p === 'agent' ? 'Watch the practice app: the agent is on it'
+      : p === 'done' && n ? (n.status === 'dismissed' ? 'No change this time. Try another, or get Loupe' : 'It changed. Leave another note, or get Loupe')
+      : 'Watch the practice app change';
+    var cur = (p === 'point' || p === 'write') ? 0 : p === 'tell' ? 1 : 2;
+    lines = [first, second, third];
+    check.innerHTML = lines.map(function (t, i) {
+      var ok = i < cur || (p === 'done' && i < 2), now = i === cur;
+      var btn = '';
+      if (now && p === 'tell') btn = '<button type="button" class="btn small" id="tell">Tell the Agent</button>';
+      if (now && p === 'done') btn = '<a class="btn small" href="#download">Get Loupe</a>';
+      return '<li class="' + (now ? 'now' : ok ? 'ok' : '') + '"><span class="n">' + (ok && !now ? '✓' : i + 1) + '</span><span class="t">' + t + '</span>' + btn + '</li>';
+    }).join('');
+    var tb = $('#tell'); if (tb) tb.addEventListener('click', tell);
+    desk.classList.toggle('locked', !canPoint());
+  }
+
+  $('#reset').addEventListener('click', start);
+  window.addEventListener('resize', function () { placePins(); hoverlabel.hidden = true; if (!pop.hidden) { var n = s.open || (s.phase === 'write' ? null : note()); placePop(s.phase === 'write' && s.target ? s.target : (n ? n.el : app)); } });
+  start();
+
+  /* setup tabs and copy buttons */
+  $$('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('.tabs button').forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+      $$('.panel').forEach(function (pn) { pn.hidden = pn.dataset.panel !== b.dataset.tab; });
+    });
+  });
+  $$('.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var code = $('code', b.parentNode), done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code.textContent).then(done, select); else select();
+      function select() { var r = document.createRange(); r.selectNodeContents(code); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+    });
+  });
+})();
+</script>
 </body>
 </html>
