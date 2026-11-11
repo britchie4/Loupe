@@ -105,6 +105,30 @@ struct SwiftUIElementNamingTests {
         #expect(SearchPatternGenerator.patterns(identifier: nil, title: nil, role: "AXButton").isEmpty)
     }
 
+    @Test func textLabelsAreSearchedByTheirWords() {
+        // A SwiftUI Text("Farmers market") has no title or description; its words are its value
+        let patterns = SearchPatternGenerator.patterns(identifier: nil, title: nil, value: "Farmers market", role: "AXStaticText")
+        #expect(patterns == ["Text\\(\"Farmers market\"\\)", "\"Farmers market\""])
+
+        let label = AXElementInfo(
+            role: "AXStaticText", identifier: nil, title: nil, value: "Farmers market",
+            frame: .zero, hierarchyPath: [], element: AXUIElementCreateSystemWide()
+        )
+        let note = store.addAnnotation(text: "Rename this", for: label, appName: "Weekend Planner", bundleIdentifier: "com.example.planner")
+        #expect(note.searchPatterns == patterns)
+        #expect(label.searchPatterns == patterns)
+    }
+
+    @Test func valuesThatAreNotLabelsGiveNoPatterns() {
+        // A checkbox's value is 0 or 1, and a text field's value is what the person typed
+        #expect(SearchPatternGenerator.patterns(identifier: nil, title: nil, value: "1", role: "AXCheckBox").isEmpty)
+        #expect(SearchPatternGenerator.patterns(identifier: nil, title: nil, value: "hello", role: "AXTextField").isEmpty)
+        // Long or multi-line text is content, not a string to look for in code
+        let paragraph = String(repeating: "word ", count: 30)
+        #expect(SearchPatternGenerator.patterns(identifier: nil, title: nil, value: paragraph, role: "AXStaticText").isEmpty)
+        #expect(SearchPatternGenerator.patterns(identifier: nil, title: nil, value: "one\ntwo", role: "AXStaticText").isEmpty)
+    }
+
     @Test func agentSeesNameAndPatternsInListNotes() throws {
         addNote()
         let request: JSONValue = ["jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": ["name": "list_notes", "arguments": [:]]]

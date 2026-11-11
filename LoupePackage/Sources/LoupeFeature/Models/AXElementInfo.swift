@@ -95,9 +95,10 @@ public struct SearchPatternGenerator {
     ///   - title: The element's title
     ///   - description: The element's accessibility description, used when it has no title
     ///     (SwiftUI controls report their text there)
+    ///   - value: The element's value. Used only for text labels, whose words live there
     ///   - role: The element's AX role
     /// - Returns: Array of regex patterns
-    public static func patterns(identifier: String?, title: String?, description: String? = nil, role: String) -> [String] {
+    public static func patterns(identifier: String?, title: String?, description: String? = nil, value: String? = nil, role: String) -> [String] {
         var patterns: [String] = []
 
         // Priority 1: Identifier-based patterns
@@ -124,9 +125,23 @@ public struct SearchPatternGenerator {
                 patterns.append("accessibilityLabel\\(\"\(escapedName)\"\\)")
             }
             patterns.append("\(role).*\(escapedName)")
+        } else if let text = labelText(value: value, role: role) {
+            // A text label has no name of its own: its words are its value
+            let escapedText = text.replacingOccurrences(of: "\"", with: "\\\"")
+            patterns.append("Text\\(\"\(escapedText)\"\\)")
+            patterns.append("\"\(escapedText)\"")
         }
 
         return patterns
+    }
+
+    /// The words of a text label, when they are short enough to search code for.
+    /// Longer or multi-line text is usually content, not a string in the source.
+    private static func labelText(value: String?, role: String) -> String? {
+        guard role == "AXStaticText",
+              let text = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty, text.count <= 80, !text.contains(where: \.isNewline) else { return nil }
+        return text
     }
 
     /// Heuristic: if the string contains dots and no spaces, it's likely an SF Symbol name
@@ -267,7 +282,7 @@ public struct AXElementInfo: Identifiable, Equatable {
 
     /// Search patterns that AI agents can use to find this element in code
     public var searchPatterns: [String] {
-        SearchPatternGenerator.patterns(identifier: identifier, title: title, description: axDescription, role: role)
+        SearchPatternGenerator.patterns(identifier: identifier, title: title, description: axDescription, value: value, role: role)
     }
 
     public static func == (lhs: AXElementInfo, rhs: AXElementInfo) -> Bool {

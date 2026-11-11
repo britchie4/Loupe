@@ -168,7 +168,7 @@ public struct Annotation: Identifiable, Equatable, Codable {
     /// Search patterns that AI agents can use to find this element in code
     public var searchPatterns: [String] {
         SearchPatternGenerator.patterns(
-            identifier: elementIdentifier, title: elementTitle, description: elementDescription, role: elementRole
+            identifier: elementIdentifier, title: elementTitle, description: elementDescription, value: elementValue, role: elementRole
         )
     }
 
