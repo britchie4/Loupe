@@ -119,12 +119,12 @@ Build and run with Xcode (Cmd+R).
 
 1. Quit Loupe (right-click the toolbar and choose **Quit Loupe**).
 2. [Download the latest release](https://github.com/britchie4/Loupe/releases/latest).
-3. Drag Loupe to Applications, replacing the old copy. Your Accessibility permission carries over.
+3. Drag Loupe to Applications, replacing the old copy. Your permission for Loupe carries over.
 
 ## Requirements
 
 - macOS 14.0+ (Sonoma)
-- Accessibility permissions — Loupe will prompt on first launch
+- Permission to read other apps. Loupe asks on first launch. macOS 27 and later call this "Device Control and Data Access"; earlier versions call it "Accessibility".
 
 ## Inspired by
 
