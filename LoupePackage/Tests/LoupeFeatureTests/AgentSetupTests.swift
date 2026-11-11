@@ -78,4 +78,30 @@ struct AgentSetupTests {
             #expect(!target.hint.contains("\u{2014}"))
         }
     }
+
+    // MARK: The permission screen
+
+    /// macOS 27 renamed the permission. The screen uses the name the person will see.
+    @Test func thePermissionIsNamedAsThisMacNamesIt() {
+        #expect(SetupCopy.settingName(macOSMajorVersion: 27) == "Device Control and Data Access")
+        #expect(SetupCopy.settingName(macOSMajorVersion: 26) == "Accessibility")
+        #expect(SetupCopy.settingName(macOSMajorVersion: 14) == "Accessibility")
+        #expect(SetupCopy.turnOnStep(macOSMajorVersion: 27) == "Turn on **Loupe** under Device Control and Data Access")
+        #expect(SetupCopy.turnOnStep(macOSMajorVersion: 15) == "Turn on **Loupe** under Accessibility")
+    }
+
+    @Test func thePermissionScreenSaysWhatLoupeDoesInPlainWords() {
+        let strings = [SetupCopy.permissionTitle, SetupCopy.permissionReason, SetupCopy.returnStep,
+                       SetupCopy.permissionNote(macOSMajorVersion: 27), SetupCopy.permissionNote(macOSMajorVersion: 15)]
+        for string in strings {
+            #expect(!string.contains("\u{2014}"))
+            #expect(!string.contains("API"))
+        }
+        // The broad warning only exists on macOS 27 and later
+        #expect(SetupCopy.permissionNote(macOSMajorVersion: 27).contains("warns"))
+        #expect(!SetupCopy.permissionNote(macOSMajorVersion: 15).contains("warns"))
+        #expect(SetupCopy.permissionNote(macOSMajorVersion: 27).contains("never clicks or types"))
+        // Setup no longer closes itself once access is granted
+        #expect(!SetupCopy.returnStep.contains("close"))
+    }
 }

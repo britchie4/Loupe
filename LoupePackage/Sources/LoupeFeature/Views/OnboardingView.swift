@@ -75,22 +75,28 @@ struct OnboardingView: View {
                 .frame(width: 80, height: 80)
 
             // Title
-            Text("Loupe needs Accessibility access")
+            Text(SetupCopy.permissionTitle)
                 .font(.title2)
                 .fontWeight(.semibold)
 
             // Explanation
-            Text("To inspect UI elements in other apps, Loupe uses the macOS Accessibility API. You'll need to grant permission in System Settings.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            VStack(spacing: 8) {
+                Text(SetupCopy.permissionReason)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                Text(SetupCopy.permissionNote())
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 40)
 
             // Instructions
             VStack(alignment: .leading, spacing: 8) {
                 instructionRow(number: "1", text: "Click **Grant Access** below")
-                instructionRow(number: "2", text: "Toggle **Loupe** on in System Settings")
-                instructionRow(number: "3", text: "This window will close automatically")
+                instructionRow(number: "2", text: LocalizedStringKey(SetupCopy.turnOnStep()))
+                instructionRow(number: "3", text: LocalizedStringKey(SetupCopy.returnStep))
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
@@ -210,4 +216,40 @@ struct OnboardingView: View {
                 .foregroundStyle(.primary)
         }
     }
+}
+
+// MARK: - Words on the permission screen
+
+/// What setup says when it asks for the one permission Loupe needs.
+///
+/// macOS 27 renamed that permission from "Accessibility" to "Device Control and Data
+/// Access" and attached a broad warning to it. The screen uses the name the person will
+/// actually see in System Settings, says in plain words what Loupe does with it, and
+/// only promises what is true of the code: Loupe reads other apps and never acts in them.
+enum SetupCopy {
+    /// The permission's name in System Settings on this version of macOS
+    static func settingName(macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion) -> String {
+        macOSMajorVersion >= 27 ? "Device Control and Data Access" : "Accessibility"
+    }
+
+    static let permissionTitle = "Let Loupe see the app you point at"
+
+    static let permissionReason = "Loupe reads the buttons, labels and layout of the app you choose, so each note says exactly what you pointed at."
+
+    /// Names the permission as macOS shows it, and answers the warning macOS attaches to it
+    static func permissionNote(macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion) -> String {
+        let name = settingName(macOSMajorVersion: macOSMajorVersion)
+        if macOSMajorVersion >= 27 {
+            return "macOS calls this \(name) and warns about everything it could allow. Loupe only reads. It never clicks or types in your apps."
+        }
+        return "macOS calls this \(name). Loupe only reads. It never clicks or types in your apps."
+    }
+
+    /// Step 2, as Markdown so the app's name stands out
+    static func turnOnStep(macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion) -> String {
+        "Turn on **Loupe** under \(settingName(macOSMajorVersion: macOSMajorVersion))"
+    }
+
+    /// Step 3. Setup stays open after access is granted, so the person comes back to it.
+    static let returnStep = "Come back to this window"
 }
