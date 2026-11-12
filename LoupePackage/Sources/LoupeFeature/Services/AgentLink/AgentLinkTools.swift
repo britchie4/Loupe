@@ -135,7 +135,7 @@ enum AgentLinkTools {
         AgentLinkTool(
             name: "list_notes",
             title: "List notes",
-            description: "List the user's notes for the selected app (or another app), each tied to a UI element: what the user wants changed, where the element is, and search patterns for finding it in code, plus the conversation so far. Replies from the user (from \"user\") answer your questions or add detail; a user reply sets the note back to pending. Shows open notes unless you ask for another status. While the user is in Loupe's built-in practice, the list starts with the practice note (app \"Practice App\"); see change_practice_app.",
+            description: "List the user's notes for the selected app (or another app), each tied to a UI element: what the user wants changed, where the element is, and search patterns for finding it in code, plus the conversation so far. Replies from the user (from \"user\") answer your questions or add detail; a user reply sets the note back to pending. Shows open notes unless you ask for another status. While the user is in Loupe's built-in practice, the list starts with the practice note (app \"Practice App\"); see edit_practice_app.",
             inputSchema: [
                 "type": "object",
                 "properties": [
