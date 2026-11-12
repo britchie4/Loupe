@@ -56,7 +56,7 @@ public struct FeedbackOutputGenerator {
             return nil
         }
 
-        return "This element is near \(siblingDesc) — search for \"\(searchTerm)\" alongside \"\(sibling.title ?? sibling.identifier ?? "")\" in the same container"
+        return "This element is near \(siblingDesc): search for \"\(searchTerm)\" alongside \"\(sibling.title ?? sibling.identifier ?? "")\" in the same container"
     }
 
     // MARK: - Format Generation
