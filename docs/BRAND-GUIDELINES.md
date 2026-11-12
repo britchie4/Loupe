@@ -167,7 +167,7 @@ System fonts only (SF Pro), sized with text styles so Dynamic Type and accessibi
 
 - **Address:** https://loupemac.app, served by GitHub Pages from `docs/` on `main`. The domain is verified on Brent's GitHub account. The old address (`britchie4.github.io/Loupe`) redirects there and must keep working, because Loupe 1.2.1 checks for updates at `…/Loupe/appcast.xml`.
 - **Structure:** hero (headline, a coded animation of Loupe in use), "Try it yourself" (an in-browser practice), how it works, what your agent can and can't do (Agent Link), get Loupe. The footer name links to brentritchie.dev.
-- **Typography:** headings in **Bricolage Grotesque** (500 and 700); body in the system stack; code in SF Mono.
+- **Typography:** system fonts throughout (SF Pro for headings and body, SF Mono for code), matching the app. Bricolage Grotesque was dropped in November 2026 because it had become a common sign of AI-built sites.
 - **Light and dark:** paper in light, ink in dark, following the visitor's setting.
 
 ---
@@ -190,7 +190,7 @@ System fonts only (SF Pro), sized with text styles so Dynamic Type and accessibi
 | Base | Ink `#14161b`, Paper `#f6f3ee` |
 | App icon | Jeweler's loupe seen from above, coral rim, ink background, layered for Liquid Glass |
 | Menu bar | One-colour lens; coral dot when a note needs you |
-| Type | System fonts in the app; Bricolage Grotesque headings on the website |
+| Type | System fonts (SF Pro) in the app and on the website |
 | Copy | No em dashes in user-facing text; plain language |
 | Website | loupemac.app on GitHub Pages |
 
