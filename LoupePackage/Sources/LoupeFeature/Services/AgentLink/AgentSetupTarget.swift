@@ -77,14 +77,18 @@ public enum AgentSetupTarget: String, CaseIterable, Identifiable, Sendable {
         let say = afterSetupMessage.map { "echo \(Self.shellQuoted($0))" } ?? ""
         switch self {
         case .claudeCode:
-            // The message only prints when adding Loupe worked
-            return .copy("claude mcp add --scope user loupe -- \(quoted) --mcp && \(say)")
+            // Claude Code refuses to add a server whose name is taken, so an older Loupe
+            // (moved from Downloads, a previous build) is removed first; quietly, since
+            // usually there is none. The message only prints when adding Loupe worked.
+            return .copy("\(Self.claudeRemoveOld()); claude mcp add --scope user loupe -- \(quoted) --mcp && \(say)")
         case .codex:
+            // Codex replaces a server with the same name on its own
             return .copy("codex mcp add loupe -- \(quoted) --mcp && \(say)")
         case .xcode:
             let base = "$HOME/Library/Developer/Xcode/CodingAssistant"
+            let claudeDir = "CLAUDE_CONFIG_DIR=\"\(base)/ClaudeAgentConfig\""
             return .copy("""
-            CLAUDE_CONFIG_DIR="\(base)/ClaudeAgentConfig" claude mcp add --scope user loupe -- \(quoted) --mcp
+            \(Self.claudeRemoveOld(prefix: claudeDir + " ")); \(claudeDir) claude mcp add --scope user loupe -- \(quoted) --mcp
             CODEX_HOME="\(base)/codex" codex mcp add loupe -- \(quoted) --mcp
             \(say)
             """)
@@ -107,6 +111,11 @@ public enum AgentSetupTarget: String, CaseIterable, Identifiable, Sendable {
 
     static var executablePath: String {
         Bundle.main.executablePath ?? "/Applications/Loupe.app/Contents/MacOS/Loupe"
+    }
+
+    /// Removes any Loupe already added to Claude Code, saying nothing either way
+    static func claudeRemoveOld(prefix: String = "") -> String {
+        "\(prefix)claude mcp remove --scope user loupe >/dev/null 2>&1"
     }
 
     static func shellQuoted(_ path: String) -> String {

@@ -13,8 +13,19 @@ struct AgentSetupTests {
     }
 
     @Test func terminalCommandsRegisterLoupe() throws {
-        #expect(try #require(copied(.claudeCode)).hasPrefix("claude mcp add --scope user loupe -- '\(path)' --mcp && echo '"))
+        #expect(try #require(copied(.claudeCode)).hasPrefix("claude mcp remove --scope user loupe >/dev/null 2>&1; claude mcp add --scope user loupe -- '\(path)' --mcp && echo '"))
         #expect(try #require(copied(.codex)).hasPrefix("codex mcp add loupe -- '\(path)' --mcp && echo '"))
+    }
+
+    /// Claude Code refuses to add a second "loupe", so an older one (a previous build, or
+    /// Loupe before it moved to Applications) is removed first, without a message if there is none
+    @Test func claudeCodeReplacesAnOlderLoupe() throws {
+        let command = try #require(copied(.claudeCode))
+        let remove = try #require(command.range(of: "claude mcp remove --scope user loupe"))
+        let add = try #require(command.range(of: "claude mcp add --scope user loupe"))
+        #expect(remove.lowerBound < add.lowerBound)
+        // A failed remove (nothing to remove) must not stop the add
+        #expect(command.contains(">/dev/null 2>&1; claude mcp add"))
     }
 
     /// A chat that was open before setup never gets Loupe's tools. The command itself says
@@ -38,7 +49,8 @@ struct AgentSetupTests {
         let lines = try #require(copied(.xcode)).split(separator: "\n")
         #expect(lines.count == 3)
         #expect(lines[2].hasPrefix("echo 'Next, start a new conversation in Xcode"))
-        #expect(lines[0].hasPrefix("CLAUDE_CONFIG_DIR=\"$HOME/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig\" claude mcp add"))
+        let claudeDir = "CLAUDE_CONFIG_DIR=\"$HOME/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig\""
+        #expect(lines[0].hasPrefix("\(claudeDir) claude mcp remove --scope user loupe >/dev/null 2>&1; \(claudeDir) claude mcp add"))
         #expect(lines[1].hasPrefix("CODEX_HOME=\"$HOME/Library/Developer/Xcode/CodingAssistant/codex\" codex mcp add"))
     }
 
