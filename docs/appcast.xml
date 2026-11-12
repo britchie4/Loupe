@@ -6,6 +6,36 @@
         <description>Updates for Loupe</description>
         <language>en</language>
         <item>
+            <title>Loupe 2.0.0</title>
+            <pubDate>Thu, 12 Nov 2026 01:31:19 +0000</pubDate>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <p>Your coding agent can now read your notes directly. Point at your Mac app, say what should change, and your agent picks it up, asks if it isn't sure, and tells you when it's done, all inside Loupe.</p>
+                <h3>New</h3>
+                <ul>
+                    <li><b>Agent Link.</b> Connect Claude Code, Codex, Cursor, Xcode or any agent that supports MCP, and it reads your notes without copying and pasting. Agents can look at the app you picked but can never click or type in it. Agent Link is off until you turn it on in Settings.</li>
+                    <li><b>Notes are conversations.</b> Your agent can reply or ask a question, and you answer right in the note. A coral dot in the menu bar tells you when it has asked you something.</li>
+                    <li><b>Hands-on practice.</b> Try Loupe on a practice app inside Loupe. Choose <b>Practice Using Loupe</b> from the menu bar icon.</li>
+                </ul>
+                <h3>Changed</h3>
+                <ul>
+                    <li>New look: a coral-rimmed loupe icon, a matching menu bar lens, and coral highlights.</li>
+                    <li>Liquid Glass on macOS 26 and later. The toolbar grows out of the floating icon, and you can drag the icon anywhere.</li>
+                </ul>
+                <h3>Fixed</h3>
+                <ul>
+                    <li>The floating icon sometimes ignored clicks.</li>
+                    <li>Several notes on the same element now sit side by side.</li>
+                </ul>
+            ]]></description>
+            <enclosure url="https://github.com/britchie4/Loupe/releases/download/v2.0.0/Loupe-v2.0.0.dmg"
+                       type="application/octet-stream"
+                       sparkle:edSignature="IGmg+IEsVBzb3Hjm1jJCsUUXlUu5eMVdyuk/RmGnK6u8Oq1Y00lqOvrVKwH2gVU4XFStVqGJC6noCV9MT8rCAA=="
+                       length="4582363" />
+        </item>
+        <item>
             <title>Loupe 1.2.1</title>
             <pubDate>Fri, 23 Oct 2026 19:45:00 +0000</pubDate>
             <sparkle:version>7</sparkle:version>
