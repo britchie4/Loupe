@@ -69,10 +69,12 @@ fastlane/test_output
 
 # Internal docs (brand guidelines, planning notes, playgrounds, recordings)
 docs/*
-# Un-ignore GitHub Pages landing page
+# Un-ignore the files the website (GitHub Pages) serves. A new website file must be
+# listed here, or it never reaches GitHub and the live site can't load it.
 !docs/index.html
-!docs/app-icon.png
 !docs/icon.svg
+!docs/favicon.ico
+!docs/apple-touch-icon.png
 !docs/loupe-note.jpg
 !docs/social-preview.png
 !docs/CNAME

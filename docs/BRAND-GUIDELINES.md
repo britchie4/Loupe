@@ -136,8 +136,9 @@ The lens seen head-on: a ring with a small glint, drawn as a one-colour **templa
 When the toolbar is tucked away, it shows just the loupe on glass (`Views/LoupeMark.swift`), not the full app icon. The open-note count sits on the window's corner in **Coral, strong** and fades in after the icon settles.
 
 ### Other assets
-- Social card: `docs/social-preview.png` (1200 × 630).
-- Favicon and README icon: `docs/icon.svg`.
+- Social card: `docs/social-preview.png` (1280 × 640). If its size changes, update `og:image:width` and `og:image:height` in `docs/index.html` to match.
+- README icon: `docs/icon.svg`.
+- Website favicon: `docs/icon.svg` for most browsers, plus two copies made from it: `docs/favicon.ico` (16 and 32 px, for Safari tabs, bookmarks and link previews) and `docs/apple-touch-icon.png` (180 px, for Apple devices). After changing `icon.svg`, run `scripts/make-website-icons.sh` to rebuild both.
 - Earlier explorations, kept for reference only: `docs/brand-2.0-directions.html`, `docs/brand-2.0-icons.html`, `docs/brand-2.0-icons-r2.html` (round two chose shape V4, "seen from above").
 
 ---
