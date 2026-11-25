@@ -24,6 +24,11 @@ let package = Package(
             name: "LoupeFeature",
             dependencies: [
                 .product(name: "Sparkle", package: "Sparkle")
+            ],
+            resources: [
+                // Skills Agent Link serves to coding agents (the MCP Skills extension).
+                // Keep in sync with the repository's skills/ folder; a test checks this.
+                .copy("Resources/Skills")
             ]
         ),
         .testTarget(

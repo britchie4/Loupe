@@ -116,9 +116,12 @@ private struct AgentLinkSettingsSection: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Teach your agent the notes workflow:")
+                Text(setupTarget == .claudeCode
+                    ? "Claude Code 2.1.332 and later can learn the notes workflow from Loupe, if your plan has MCP skills turned on. If not, or on an older version, install it:"
+                    : "Teach your agent the notes workflow:")
                     .font(.caption)
                     .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 4)
 
                 copyButton("Copy skill install command", command: AgentLinkServer.skillInstallCommand)

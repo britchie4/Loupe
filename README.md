@@ -90,7 +90,11 @@ CODEX_HOME="$HOME/Library/Developer/Xcode/CodingAssistant/codex" codex mcp add l
 
 ### Teach your agent the routine
 
-The [loupe-notes skill](skills/loupe-notes/SKILL.md) walks an agent through the notes routine: pick up a note, ask when something is unclear, make the change, check it on screen, and report back. Install it for Claude Code, Codex and other agents that read skills:
+The [loupe-notes skill](skills/loupe-notes/SKILL.md) walks an agent through the notes routine: read every open note first, ask about unclear ones right away, batch related changes, check them on screen, report back, and pick up your answers before finishing.
+
+**Claude Code 2.1.332 or later** gets the skill from Loupe itself, through Agent Link. It appears as `loupe:loupe-notes` in Claude Code's `/` menu, there's nothing to install, and it always matches your version of Loupe. (Claude Code's skills from MCP servers are in beta: on by default for Pro, Max and Ultra plans, and on Team plans once an admin turns them on.) If you installed the skill with the command below before, you can remove that copy so it isn't listed twice.
+
+For Codex, Cursor, Xcode and other agents that read skills from disk, install it once:
 
 ```bash
 npx skills add britchie4/Loupe
