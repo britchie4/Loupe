@@ -103,21 +103,22 @@ public struct SearchPatternGenerator {
 
         // Priority 1: Identifier-based patterns
         if let identifier = identifier, !identifier.isEmpty {
-            patterns.append("accessibilityIdentifier.*\(identifier)")
-            patterns.append(".accessibilityIdentifier\\(\"\(identifier)\"\\)")
+            let escapedIdentifier = sourceLiteralPattern(identifier)
+            patterns.append("accessibilityIdentifier.*\(escapedIdentifier)")
+            patterns.append(".accessibilityIdentifier\\(\"\(escapedIdentifier)\"\\)")
 
             // SF Symbol patterns: identifier contains dots and no spaces
             if looksLikeSFSymbol(identifier) {
-                patterns.append("Image\\(systemName: \"\(identifier)\"\\)")
-                patterns.append("systemSymbolName.*\(identifier)")
-                patterns.append("Label.*\(identifier)")
+                patterns.append("Image\\(systemName: \"\(escapedIdentifier)\"\\)")
+                patterns.append("systemSymbolName.*\(escapedIdentifier)")
+                patterns.append("Label.*\(escapedIdentifier)")
             }
         }
 
         // Priority 2: Name-based patterns (the title, or the description when there is no title)
         let hasTitle = !(title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if let name = ElementKind.accessibleName(title: title, description: description) {
-            let escapedName = name.replacingOccurrences(of: "\"", with: "\\\"")
+            let escapedName = sourceLiteralPattern(name)
             patterns.append("Text\\(\"\(escapedName)\"\\)")
             patterns.append("Button\\(\"\(escapedName)\"\\)")
             if !hasTitle {
@@ -127,12 +128,30 @@ public struct SearchPatternGenerator {
             patterns.append("\(role).*\(escapedName)")
         } else if let text = labelText(value: value, role: role) {
             // A text label has no name of its own: its words are its value
-            let escapedText = text.replacingOccurrences(of: "\"", with: "\\\"")
+            let escapedText = sourceLiteralPattern(text)
             patterns.append("Text\\(\"\(escapedText)\"\\)")
             patterns.append("\"\(escapedText)\"")
         }
 
         return patterns
+    }
+
+    /// A pattern that matches some on-screen text as it's written inside a Swift string literal.
+    /// The text is escaped twice: first as source writes it (a quote or backslash gets a backslash),
+    /// then for regular expressions, so a name like `What's new?` or `Price (USD)` matches itself
+    /// instead of being read as regex syntax. Only the characters every common regex engine treats
+    /// as special are escaped, so the pattern works in grep -E, ripgrep and Swift alike.
+    static func sourceLiteralPattern(_ text: String) -> String {
+        let source = text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let special: Set<Character> = ["\\", ".", "^", "$", "|", "?", "*", "+", "(", ")", "[", "]", "{", "}"]
+        var pattern = ""
+        for character in source {
+            if special.contains(character) { pattern.append("\\") }
+            pattern.append(character)
+        }
+        return pattern
     }
 
     /// The words of a text label, when they are short enough to search code for.

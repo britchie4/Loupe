@@ -119,6 +119,40 @@ struct SwiftUIElementNamingTests {
         #expect(label.searchPatterns == patterns)
     }
 
+    @Test(arguments: [
+        "What's new?", "Price (USD)", "1.5x speed", "Say \"hi\"", #"C:\Temp"#, "[Beta] Export",
+        "a+b", "$5 off", "Tab {1}", "Yes | No", "^Top", "Save…", "50% * 2",
+    ])
+    func patternsFindNamesWithRegexCharacters(name: String) throws {
+        // How the name is written in Swift source: quotes and backslashes get a backslash
+        let literal = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let source = """
+        Button("\(literal)") { save() }
+        Text("\(literal)")
+        """
+
+        let named = SearchPatternGenerator.patterns(identifier: nil, title: name, role: "AXButton")
+        let label = SearchPatternGenerator.patterns(identifier: nil, title: nil, value: name, role: "AXStaticText")
+        for pattern in named.prefix(2) + label {
+            let regex = try NSRegularExpression(pattern: pattern)
+            let found = regex.firstMatch(in: source, range: NSRange(source.startIndex..., in: source))
+            #expect(found != nil, "\(pattern) doesn't find \(name)")
+        }
+
+        // And they don't find a near miss
+        let nearMiss = "Button(\"\(literal)x\")"
+        let button = try NSRegularExpression(pattern: named[1])
+        #expect(button.firstMatch(in: nearMiss, range: NSRange(nearMiss.startIndex..., in: nearMiss)) == nil)
+    }
+
+    @Test func identifierPatternsMatchLiterally() throws {
+        let patterns = SearchPatternGenerator.patterns(identifier: "square.and.arrow.up", title: nil, role: "AXButton")
+        #expect(patterns.contains("Image\\(systemName: \"square\\.and\\.arrow\\.up\"\\)"))
+        let regex = try NSRegularExpression(pattern: "Image\\(systemName: \"square\\.and\\.arrow\\.up\"\\)")
+        let other = "Image(systemName: \"squareXandXarrowXup\")"
+        #expect(regex.firstMatch(in: other, range: NSRange(other.startIndex..., in: other)) == nil)
+    }
+
     @Test func valuesThatAreNotLabelsGiveNoPatterns() {
         // A checkbox's value is 0 or 1, and a text field's value is what the person typed
         #expect(SearchPatternGenerator.patterns(identifier: nil, title: nil, value: "1", role: "AXCheckBox").isEmpty)
