@@ -105,7 +105,8 @@ public final class AgentLinkServer {
 
     // MARK: - Setup
 
-    /// Installs the loupe-notes skill, which teaches an agent the notes workflow,
-    /// into Claude Code, Codex and other agents that read standard skills
+    /// Installs the loupe-notes skill, which teaches an agent the notes workflow, into agents
+    /// that read standard skills from disk. Agents that support the MCP Skills extension
+    /// (Claude Code 2.1.332 and later) get it from Agent Link instead (see `AgentSkill`).
     public static let skillInstallCommand = "npx skills add britchie4/Loupe"
 }

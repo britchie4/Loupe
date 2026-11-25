@@ -57,7 +57,7 @@ struct MCPHandlerTests {
         let unknownTool = try #require(try reply(handler, #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"nope"}}"#))
         #expect(unknownTool["error"]?["code"] == -32602)
 
-        let unknownMethod = try #require(try reply(handler, #"{"jsonrpc":"2.0","id":5,"method":"resources/list"}"#))
+        let unknownMethod = try #require(try reply(handler, #"{"jsonrpc":"2.0","id":5,"method":"prompts/list"}"#))
         #expect(unknownMethod["error"]?["code"] == -32601)
 
         let garbage = try #require(try reply(handler, "not json"))
@@ -122,6 +122,13 @@ struct AgentLinkEndToEndTests {
         relay.forward(Data(#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_status"}}"#.utf8))
         let offlineCall = try await agent.nextMessage()
         #expect(offlineCall["error"]?["message"]?.stringValue == AgentLinkRelay.unreachableMessage)
+
+        // A modern agent's first question gets a modern answer, so it keeps that protocol once Loupe opens
+        relay.forward(Data(#"{"jsonrpc":"2.0","id":"d","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}"#.utf8))
+        let offlineDiscover = try await agent.nextMessage()
+        #expect(offlineDiscover["result"]?["supportedVersions"] == ["2026-07-28"])
+        #expect(offlineDiscover["result"]?["instructions"]?.stringValue == AgentLinkRelay.unreachableMessage)
+        #expect(offlineDiscover["result"]?["ttlMs"] == 0)
 
         // Turn Agent Link on: the next request goes through to the app
         let server = AgentLinkServer(socketPath: path)
