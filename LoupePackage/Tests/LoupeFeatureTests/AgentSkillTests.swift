@@ -51,6 +51,30 @@ struct AgentSkillTests {
         }
     }
 
+    /// Hosts check every file's bytes, and compare SKILL.md's frontmatter with their own YAML reader.
+    /// Loupe serves files as text, writes URIs without percent-encoding, and reads frontmatter as
+    /// plain strings, so the skill has to stay inside what those shortcuts handle.
+    @Test func skillStaysInTheShapeLoupeCanServe() throws {
+        let skill = try #require(bundledNotesSkill)
+
+        // Frontmatter: name and description, as plain one-line strings a YAML reader sees the same way
+        #expect(Set(skill.frontmatter.keys) == ["name", "description"], "Loupe's frontmatter reader handles only name and description")
+        for (key, value) in skill.frontmatter {
+            let yamlNonStrings: Set<String> = ["true", "false", "yes", "no", "on", "off", "null", "~"]
+            #expect(!yamlNonStrings.contains(value.lowercased()) && Double(value) == nil, "\(key) would read as a YAML non-string")
+            #expect(value.first.map { !"[]{}&*!|>'\"%@`#-?:,".contains($0) } ?? false, "\(key) starts with a YAML special character")
+            #expect(!value.contains(": ") && !value.contains(" #"), "\(key) has a sequence YAML treats specially")
+        }
+
+        for file in skill.files {
+            // Served as text, so every file must be Markdown in UTF-8
+            #expect(file.path.hasSuffix(".md"), "\(file.path) isn't Markdown")
+            #expect(String(data: file.data, encoding: .utf8) != nil, "\(file.path) isn't UTF-8 text")
+            // Plain names only, since skill URIs aren't percent-encoded
+            #expect(file.path.wholeMatch(of: #/[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*/#) != nil, "\(file.path) needs a plain name: letters, numbers, dots, dashes and underscores")
+        }
+    }
+
     @Test func readsFrontmatter() {
         let text = "---\nname: demo\ndescription: \"Quoted: with a colon\"\n---\n\n# Demo\n"
         #expect(AgentSkill.parseFrontmatter(text) == ["name": "demo", "description": "Quoted: with a colon"])

@@ -117,7 +117,7 @@ private struct AgentLinkSettingsSection: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(setupTarget == .claudeCode
-                    ? "Claude Code 2.1.332 and later learn the notes workflow from Loupe. On an older version, install it:"
+                    ? "Claude Code 2.1.332 and later can learn the notes workflow from Loupe, if your plan has MCP skills turned on. If not, or on an older version, install it:"
                     : "Teach your agent the notes workflow:")
                     .font(.caption)
                     .foregroundStyle(.primary)

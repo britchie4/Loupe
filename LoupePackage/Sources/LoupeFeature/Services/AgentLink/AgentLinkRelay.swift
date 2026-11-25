@@ -10,6 +10,10 @@ public enum AgentLinkRelay {
 
     static let unreachableMessage = "Loupe isn't reachable. Open Loupe and turn on Agent Link in Loupe's Settings, then try again."
 
+    /// What the relay offers while Loupe is closed: tools only, so agents don't follow up with
+    /// resource and skill requests that can only fail until Loupe opens
+    static let offlineCapabilities: JSONValue = ["tools": ["listChanged": false]]
+
     /// Run until the agent closes standard input
     public static func run() -> Never {
         signal(SIGPIPE, SIG_IGN)
@@ -133,10 +137,11 @@ public enum AgentLinkRelay {
             switch method {
             case "server/discover":
                 // Answer as a modern server either way, so the agent stays on the same protocol once
-                // Loupe opens. Zero freshness tells it not to keep this answer.
+                // Loupe opens. Zero freshness tells it not to keep this answer, so it asks again and
+                // learns about skills once Loupe can serve them.
                 var result = MCPHandler.marked([
                     "supportedVersions": .array(MCPHandler.modernProtocolVersions.map { .string($0) }),
-                    "capabilities": MCPHandler.capabilities,
+                    "capabilities": AgentLinkRelay.offlineCapabilities,
                     "_meta": ["io.modelcontextprotocol/serverInfo": MCPHandler.serverInfo],
                     "instructions": .string(AgentLinkRelay.unreachableMessage),
                 ], cacheable: true)
@@ -151,7 +156,7 @@ public enum AgentLinkRelay {
                     ?? MCPHandler.supportedProtocolVersions[0]
                 reply = MCPHandler.result(id: id, [
                     "protocolVersion": .string(version),
-                    "capabilities": MCPHandler.capabilities,
+                    "capabilities": AgentLinkRelay.offlineCapabilities,
                     "serverInfo": MCPHandler.serverInfo,
                     "instructions": .string(AgentLinkRelay.unreachableMessage),
                 ])

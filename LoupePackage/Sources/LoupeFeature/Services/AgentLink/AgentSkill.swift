@@ -83,7 +83,8 @@ public struct AgentSkill: Sendable, Equatable {
     // MARK: - Frontmatter
 
     /// The `key: value` lines between the opening and closing `---` of a SKILL.md.
-    /// Loupe's skills use plain one-line values, which is all this reads.
+    /// Loupe's skills use plain one-line values, which is all this reads. Hosts compare the result
+    /// with a full YAML reader, so `AgentSkillTests` keeps the skill to fields both read the same way.
     static func parseFrontmatter(_ text: String) -> [String: String]? {
         let lines = text.components(separatedBy: "\n")
         guard lines.first?.trimmingCharacters(in: .whitespaces) == "---",

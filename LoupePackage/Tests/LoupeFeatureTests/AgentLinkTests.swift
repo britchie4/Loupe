@@ -129,6 +129,9 @@ struct AgentLinkEndToEndTests {
         #expect(offlineDiscover["result"]?["supportedVersions"] == ["2026-07-28"])
         #expect(offlineDiscover["result"]?["instructions"]?.stringValue == AgentLinkRelay.unreachableMessage)
         #expect(offlineDiscover["result"]?["ttlMs"] == 0)
+        // Closed, Loupe offers only tools, so agents don't make resource or skill requests that would fail
+        #expect(offlineDiscover["result"]?["capabilities"] == AgentLinkRelay.offlineCapabilities)
+        #expect(offline["result"]?["capabilities"] == AgentLinkRelay.offlineCapabilities)
 
         // Turn Agent Link on: the next request goes through to the app
         let server = AgentLinkServer(socketPath: path)
