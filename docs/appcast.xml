@@ -6,6 +6,33 @@
         <description>Updates for Loupe</description>
         <language>en</language>
         <item>
+            <title>Loupe 2.1.0</title>
+            <pubDate>Wed, 25 Nov 2026 04:19:50 +0000</pubDate>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>2.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <p>Loupe 2.1 teaches your coding agent the notes routine by itself, and helps it find what you pointed at.</p>
+                <h3>New</h3>
+                <ul>
+                    <li><b>Claude Code learns the notes routine from Loupe.</b> With Agent Link on, Claude Code 2.1.332 and later gets Loupe's notes guide straight from Loupe as /loupe:loupe-notes. Nothing to install, and it always matches your version of Loupe. It needs a Claude plan with MCP skills turned on. Other agents keep using the one-time install from Settings.</li>
+                </ul>
+                <h3>Changed</h3>
+                <ul>
+                    <li><b>A smarter notes routine.</b> Your agent reads all your notes first, asks about unclear ones right away so you can answer while it works, makes related changes together with one rebuild, and checks for your answers before it finishes.</li>
+                    <li>Agent Link supports the newest version of MCP, the standard agents use to connect. Agents on the older version connect as before.</li>
+                </ul>
+                <h3>Fixed</h3>
+                <ul>
+                    <li>Agents now find buttons and labels with characters like ?, ( or quotes in their names, such as "What's new?" or "Price (USD)". Copied feedback gets the same fix.</li>
+                </ul>
+            ]]></description>
+            <enclosure url="https://github.com/britchie4/Loupe/releases/download/v2.1.0/Loupe-v2.1.0.dmg"
+                       type="application/octet-stream"
+                       sparkle:edSignature="vic/DUzNItb9Ld+ZgkwoSvLSKyNeSvjp/ai0TN8SzM6IpziNYBKNxjTqKuprAPmDzDoAjWOvlU4DbPPTZVn0Aw=="
+                       length="4389741" />
+        </item>
+        <item>
             <title>Loupe 2.0.0</title>
             <pubDate>Thu, 12 Nov 2026 01:31:19 +0000</pubDate>
             <sparkle:version>8</sparkle:version>
